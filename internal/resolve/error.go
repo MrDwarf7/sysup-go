@@ -1,6 +1,5 @@
 package resolve
 
-// Error is a failure while resolving a package-manager binary.
 type Error struct {
 	Op  string
 	Err error
