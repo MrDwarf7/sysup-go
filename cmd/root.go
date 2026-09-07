@@ -22,73 +22,64 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	cfgFile       string
+	skip          []string
+	continueOnErr bool
+	noCache       bool
+	doShutdown    bool
+	forceShutdown bool
+	logLevel      string
+)
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "sysup-go",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "System update orchestrator",
+	Long: `sysup-go runs an ordered list of user-defined programs from
+$XDG_CONFIG_HOME/sysup-go (programs.toml or programs/*.toml).
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+-s / --skip drops programs by name or alias.
+-c / --continue accumulates program errors instead of stopping (unused until later).
+These flags are not the same: -c is continue, -s c skips the program aliased c.`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute runs the root command and maps errors to process exit codes.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.sysup-go.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	pf := rootCmd.PersistentFlags()
+	pf.StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/sysup-go/config.toml)")
+	pf.StringSliceVarP(&skip, "skip", "s", nil, "skip programs by name or alias")
+	pf.BoolVarP(&continueOnErr, "continue", "c", false, "continue after program errors")
+	pf.BoolVar(&noCache, "no-cache", false, "skip end-of-run cache sweep")
+	pf.BoolVarP(&doShutdown, "shutdown", "d", false, "shut down after a clean run")
+	pf.BoolVar(&forceShutdown, "force-shutdown", false, "shut down even if programs failed")
+	pf.StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".sysup-go" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".sysup-go")
+func newLogger() *slog.Logger {
+	var lvl slog.Level
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		lvl = slog.LevelDebug
+	case "warn":
+		lvl = slog.LevelWarn
+	case "error":
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelInfo
 	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
 }
