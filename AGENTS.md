@@ -5,9 +5,11 @@ spec is the behaviour source of truth.
 
 ## Project
 
-`sysup-go` is a Go CLI that ports the Fish `sysup` orchestrator.
-User programs live in XDG TOML and run without a rebuild. Compiled
-code owns sudo keepalive, mise wrap, and end-of-run cache.
+Repo and Go module are `sysup-go`. The CLI, XDG app dir, and
+binaries are `sysup` (release) / `sysup-dbg` (debug). Ports the Fish
+`sysup` orchestrator. User programs live in XDG TOML and run without
+a rebuild. Compiled code owns sudo keepalive, mise wrap, and
+end-of-run cache.
 
 ## Docs
 
@@ -40,20 +42,31 @@ humans MUST use the just recipes; NEVER invoke bare `go build`, `go test`,
 
 Canonical recipes (alias in parens):
 
-- `just build` (`b`) - debug build to `bin/sysup-go`.
-- `just build-release` (`br`) - `CGO_ENABLED=0`, `-ldflags "-s -w -buildid="`, `-trimpath`, `-buildvcs=false`, `-mod=readonly`.
-- `just check` (`c`) - `go vet ./...`.
-- `just clean` (`cl`) - remove `bin/` and `coverage.out`.
+- `just build` (`b`) - debug: `bin/sysup-dbg` with `-race` and `-gcflags all=-N -l`.
+- `just build-release` (`br`) - release: `bin/sysup`, CGO off, stripped, no race.
+- `just build-expr` (`be`) - experimental: `bin/sysup-expr` with `-d=checkptr=2`.
+- `just build-all` (`ba`) - debug + release, print byte sizes + delta.
+- `just check` (`c`) - `go tool golangci-lint run` (`.golangci.yml` is `default: all`).
+- `just clean` (`cl`) - remove `bin/` (binaries and `bin/coverage.out`).
 - `just format` (`f`) - `go fmt ./...`.
-- `just test` (`t`) - `go test ./tests -count=1`. Extra args pass through (`just t -v`).
-- `just cover` - same tests with `-coverpkg=./...` (needed: tests are a separate package).
-- `just run *args` - debug build, then run the binary (`just run list`).
-- `just all` (`a`) - full pipeline in order: `format -> check -> test -> build`.
+- `just test` (`t`) - `-race -shuffle=on -vet=all -count=1`. Extra args pass through (`just t -v`).
+- `just cover` - race tests with `-covermode=atomic`; profile is `bin/coverage.out`.
+- `just run` (`r`) - debug build, then `bin/sysup-dbg` with `GORACE=halt_on_error=1`.
+- `just run-release` (`rr`) - release build, then `bin/sysup`.
+- `just run-expr` (`re`) - expr build, then `bin/sysup-expr` with `GOGC=off` + clobber/efence/invalidptr.
+- `just all` (`a`) - `format -> check -> test -> build-all`.
 - `just reset` (no alias) - `clean -> all`.
 
-Use the short aliases when convenient (`just b`, `just t`, etc.). `reset`
-has no alias by design; always call it as `just reset`. Prefer `just`
-over any Makefile task runner for platform-agnostic recipes.
+Debug is the strict default. Tests always use debug-class flags.
+`.golangci.yml`: never delete rules; comment/uncomment only; any change needs an explicit user yes.
+
+Use the short aliases when convenient (`just b`, `just t`, `just ba`,
+etc.). `reset` has no alias by design; always call it as `just reset`.
+Prefer `just` over any Makefile task runner for platform-agnostic recipes.
+
+CI lives under `.github/`. Toolchain pin is `go.mod` + `go.env`.
+See `docs/CI.md`. `just format-check` and `just vuln` are the CI-only
+gates on top of `just check` / `just t`.
 
 ## Layout
 
@@ -66,6 +79,8 @@ over any Makefile task runner for platform-agnostic recipes.
   `config.LoadConfig` unless the extra word is required).
 - Tests live in `tests/` as `package tests` (black-box). Do not put
   `*_test.go` next to source. `just test` runs `./tests` only.
+- TOML fixtures live in `tests/testdata/` (config + programs trees).
+  Load tests run both an in-memory FS and real disk IO from those files.
 
 ## Hard rules (this project)
 
