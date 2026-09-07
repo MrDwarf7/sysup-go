@@ -18,6 +18,8 @@ Never dump `docs/` into context.
 3. When you add a doc, add a row to `docs/INDEX.md`.
 
 Design: `docs/specs/2026-09-07-sysup-go-design.md`.
+Impl: `docs/specs/impl/00-overview.md` then the numbered milestone
+spec the goal call names. Do not implement a later ID first.
 
 ## VCS
 

@@ -1,7 +1,20 @@
 ---
 title: "sysup-go design"
 description: "Port of the Fish sysup orchestrator: config vs programs, run loop, context, cache."
-keywords: [design, spec, programs, config, runner, context, sudo, mise, cache, skip, continue]
+keywords:
+  [
+    design,
+    spec,
+    programs,
+    config,
+    runner,
+    context,
+    sudo,
+    mise,
+    cache,
+    skip,
+    continue,
+  ]
 order: 10
 ---
 
@@ -72,10 +85,10 @@ command per program; that would require a rebuild.
 
 `$XDG_CONFIG_HOME/sysup-go/` (fallback `~/.config/sysup-go/`).
 
-| Path | Job |
-| --- | --- |
-| `config.toml` | Our behaviour: sudo, mise, cache, shutdown, pkg_manager last resort |
-| `programs.toml` XOR `programs/*.toml` | What to run, and in what order |
+| Path                                  | Job                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| `config.toml`                         | Our behaviour: sudo, mise, cache, shutdown, pkg_manager last resort |
+| `programs.toml` XOR `programs/*.toml` | What to run, and in what order                                      |
 
 If `programs.toml` exists, use it (array order). Else use `programs/*.toml`.
 If neither exists, error: nothing to run.
@@ -146,14 +159,14 @@ parallel = false
 command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 ```
 
-| Field | Rules |
-| --- | --- |
-| `name` | Required. Unique across the set. Collision errors cite both paths. |
-| `alias` | Optional short skip token (`p`, `m`). Unique. Collision errors cite both paths. |
-| `description` | Help / list text. |
-| `optional` | If true, missing argv0 skips the program (not a failure). If false, missing argv0 is a validate/run error. |
-| `parallel` | Default false. See waves. |
-| `command` | Required non-empty argv. `command[0]` is the binary. No shell. |
+| Field         | Rules                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `name`        | Required. Unique across the set. Collision errors cite both paths.                                         |
+| `alias`       | Optional short skip token (`p`, `m`). Unique. Collision errors cite both paths.                            |
+| `description` | Help / list text.                                                                                          |
+| `optional`    | If true, missing argv0 skips the program (not a failure). If false, missing argv0 is a validate/run error. |
+| `parallel`    | Default false. See waves.                                                                                  |
+| `command`     | Required non-empty argv. `command[0]` is the binary. No shell.                                             |
 
 There is no `kind`, no `skip` letter derived from the first character of
 `name`, no reserved `name`. `--skip` matches `name` or `alias`.
@@ -295,15 +308,15 @@ and ordered after them.
 
 Root command runs the plan (Fish parity: `sysup-go` with no subcommand).
 
-| Flag | Meaning |
-| --- | --- |
-| `--config` | Override config path |
-| `-s, --skip` | Program names and/or aliases (StringSlice) |
-| `-c, --continue` | Accumulate program errors |
-| `--no-cache` | Skip our end-of-run cache sweep |
-| `-d, --shutdown` | Shutdown after a clean run |
-| `--force-shutdown` | Shutdown even with failures |
-| `--log-level` | slog level |
+| Flag               | Meaning                                    |
+| ------------------ | ------------------------------------------ |
+| `--config`         | Override config path                       |
+| `-s, --skip`       | Program names and/or aliases (StringSlice) |
+| `-c, --continue`   | Accumulate program errors                  |
+| `--no-cache`       | Skip our end-of-run cache sweep            |
+| `-d, --shutdown`   | Shutdown after a clean run                 |
+| `--force-shutdown` | Shutdown even with failures                |
+| `--log-level`      | slog level                                 |
 
 Subcommands (`cobra-cli add`):
 
@@ -317,13 +330,13 @@ Each `internal/` package owns a typed error with `Unwrap()`
 `cmd` maps them to process exit codes. Callers use `errors.Is` /
 `errors.As`. Wrap with `fmt.Errorf("...: %w", err)`.
 
-| Code | Meaning |
-| --- | --- |
-| 0 | ok |
-| 2 | bad flags |
-| 3 | unknown skip token |
-| 5 | program failed (hard fail, or continue with failures) |
-| 1 | everything else (missing programs dir, resolve, config) |
+| Code | Meaning                                                 |
+| ---- | ------------------------------------------------------- |
+| 0    | ok                                                      |
+| 2    | bad flags                                               |
+| 3    | unknown skip token                                      |
+| 5    | program failed (hard fail, or continue with failures)   |
+| 1    | everything else (missing programs dir, resolve, config) |
 
 `log/slog` only. No zap. Inject the logger; do not rely on the global
 except as a last-resort default in `main`.
