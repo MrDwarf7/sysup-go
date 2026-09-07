@@ -1,0 +1,116 @@
+name: "Bug Report"
+description: "File a bug report to help us improve"
+title: "[BUG]: "
+labels: ["bug"]
+assignees: []
+body:
+  - type: input
+    id: "version"
+    validations:
+      required: true
+    attributes:
+      label: "Software/Program Version"
+      description: "Run `sysup --version` (or `sysup-dbg --version`) and paste the output here."
+      placeholder: "ex: sysup 0.1.0"
+  - type: input
+    id: "go_version"
+    validations:
+      required: false
+    attributes:
+      label: "Go Version"
+      description: "Run `go version` and paste the output here. (Optional if you're not building from source.)"
+      placeholder: "ex: go version go1.27.0 linux/amd64"
+  - type: dropdown
+    id: "os"
+    validations:
+      required: true
+    attributes:
+      label: "Operating System"
+      description: "Please select your operating system."
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other (mention in description)
+  - type: input
+    id: "distro"
+    validations:
+      required: false
+    attributes:
+      label: "Linux Distribution (if applicable)"
+      description: |
+        If you selected Linux above, please specify your distribution
+        You can get this by running either `lsb_release -a`, `cat /etc/os-release`, or `uname -a`.
+      placeholder: "ex: Ubuntu 22.04"
+      value: "N/A"
+  - type: dropdown
+    id: "arch"
+    validations:
+      required: true
+    attributes:
+      label: "Architecture"
+      description: "Please select your system architecture."
+      options:
+        - x86_64
+        - aarch64
+        - armv7
+        - Other (mention in description)
+  - type: textarea
+    id: "description"
+    validations:
+      required: true
+    attributes:
+      label: "Describe the Bug"
+      description: "A clear and concise description of what the bug is."
+      placeholder: "ex: When I do [...], I expect [...] but instead [...]."
+  - type: textarea
+    id: "expected_behavior"
+    validations:
+      required: true
+    attributes:
+      label: "Expected Behavior"
+      description: "A clear and concise description of what you expected to happen."
+      placeholder: "ex: The expected behavior was [...]"
+  - type: textarea
+    id: "actual_behavior"
+    validations:
+      required: true
+    attributes:
+      label: "Actual Behavior"
+      description: "A clear and concise description of what happened instead."
+      placeholder: "ex: The actual behavior was [...]"
+  - type: textarea
+    id: "steps"
+    validations:
+      required: true
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Steps to reproduce the behavior."
+      placeholder: |
+        1. Go to '...'
+        2. Run the command '....'
+        3. Wait for '....'
+        4. See error
+      value: "1. \n2. \n3. \n4. \n"
+  - type: textarea
+    id: "logs"
+    validations:
+      required: false
+    attributes:
+      label: "Logs/Errors"
+      description: |
+        Please provide any relevant logs or error messages.
+        For long logs, wrap them in a collapsible section using Markdown.
+      placeholder: "Paste logs or errors here."
+      value: "The error that occurred was:\n\n```\n\n```"
+  - type: textarea
+    id: "config"
+    validations:
+      required: false
+    attributes:
+      label: "Config File (if relevant)"
+      description: |
+        If relevant, paste the contents of your config file.
+        Default location is `$XDG_CONFIG_HOME/sysup/config.toml`.
+      placeholder: "Paste config.toml here (if relevant)."
+      render: toml

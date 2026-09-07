@@ -1,0 +1,40 @@
+name: "Test"
+on:
+  push:
+    branches:
+      - "master"
+      - "main"
+      - "develop"
+      - "dev"
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  PROJECT_NAME: "sysup-go"
+
+jobs:
+  test:
+    name: "Test - ${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "ubuntu-latest"
+          - os: "windows-latest"
+    runs-on: "${{ matrix.os }}"
+    if: ${{ !contains(github.event.head_commit.message, 'skip ci') }}
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v7"
+
+      - name: "Setup Go"
+        uses: "./.github/actions/setup-go"
+        with:
+          install-mingw: "${{ matrix.os == 'windows-latest' }}"
+
+      - name: "Run tests"
+        shell: "bash"
+        run: "just t"

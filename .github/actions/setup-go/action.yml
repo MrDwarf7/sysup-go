@@ -1,0 +1,50 @@
+name: "Setup Go"
+description: "Install Go from go.mod, cache modules, install just. Does NOT checkout -- call actions/checkout first."
+
+inputs:
+  go-version-file:
+    description: "Path to go.mod / go.work (read by actions/setup-go)"
+    required: false
+    default: "go.mod"
+  cache:
+    description: "Cache Go modules and build outputs"
+    required: false
+    default: "true"
+  tools:
+    description: "Comma-separated tools for taiki-e/install-action (e.g. just)"
+    required: false
+    default: "just"
+  install-mingw:
+    description: "Install MinGW on Windows so -race works"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Setup Go"
+      uses: "actions/setup-go@v7"
+      with:
+        go-version-file: "${{ inputs.go-version-file }}"
+        cache: "${{ inputs.cache }}"
+        cache-dependency-path: "go.sum"
+        check-latest: false
+
+    - name: "Install tools"
+      if: "${{ inputs.tools != '' }}"
+      uses: "taiki-e/install-action@v2"
+      with:
+        tool: "${{ inputs.tools }}"
+
+    - name: "Install MinGW (Windows, for -race)"
+      if: "${{ inputs.install-mingw == 'true' && runner.os == 'Windows' }}"
+      shell: "bash"
+      run: |
+        choco install mingw -y --no-progress
+        echo "CGO_ENABLED=1" >> "$GITHUB_ENV"
+
+    - name: "Go version"
+      shell: "bash"
+      run: |
+        go version
+        go env GOVERSION GOTOOLCHAIN GOROOT

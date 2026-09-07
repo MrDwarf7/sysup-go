@@ -1,0 +1,74 @@
+name: "Build - Check & Lint"
+on:
+  push:
+    branches:
+      - "master"
+      - "main"
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  PROJECT_NAME: "sysup-go"
+
+jobs:
+  check:
+    name: "Build - ${{ matrix.task }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "ubuntu-latest"
+            task: "format"
+            run: "just format-check"
+            mingw: "false"
+          - os: "ubuntu-latest"
+            task: "lint"
+            run: "just check"
+            mingw: "false"
+          - os: "ubuntu-latest"
+            task: "build-all"
+            run: "just ba"
+            mingw: "true"
+          - os: "windows-latest"
+            task: "lint"
+            run: "just check"
+            mingw: "false"
+          - os: "windows-latest"
+            task: "build-release"
+            run: "just br"
+            mingw: "false"
+    runs-on: "${{ matrix.os }}"
+    if: ${{ !contains(github.event.head_commit.message, 'skip ci') }}
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v7"
+
+      - name: "Setup Go"
+        uses: "./.github/actions/setup-go"
+        with:
+          install-mingw: "${{ matrix.mingw }}"
+
+      - name: "${{ matrix.task }}"
+        shell: "bash"
+        run: "${{ matrix.run }}"
+
+  vuln:
+    name: "Build - govulncheck"
+    runs-on: "ubuntu-latest"
+    if: ${{ !contains(github.event.head_commit.message, 'skip ci') }}
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v7"
+
+      - name: "Setup Go"
+        uses: "./.github/actions/setup-go"
+        with:
+          install-mingw: "false"
+          tools: "just"
+
+      - name: "govulncheck"
+        shell: "bash"
+        run: "just vuln"
