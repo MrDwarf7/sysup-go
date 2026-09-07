@@ -1,2 +1,20 @@
+# build outputs
 /bin/
-coverage.out
+*.exe
+*.test
+*.out
+
+# local scratch (keep the dir)
+scratch/*
+!scratch/.gitkeep
+
+.bak/
+.bak/**
+.extras/
+.extras/**
+
+.idea/
+.vscode/
+
+*.pdb
+vendor/

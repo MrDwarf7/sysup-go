@@ -1,0 +1,164 @@
+# Clippy-pedantic analog. default: all, then the smallest possible
+# disable / path-exclusion set.
+#
+# AGENTS / LLMs: DO NOT DELETE RULES FROM THIS FILE.
+# - To turn a linter or setting off: comment the line, never remove it.
+# - To turn one back on: uncomment it.
+# - Prefer path-scoped exclusions over a global disable.
+# - Any edit to this file MUST be proposed to the user and wait for an
+#   explicit yes. Silently dropping a lint because it failed is forbidden.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: all
+  disable:
+    # domain-specific: we are a local CLI, not these stacks
+    - arangolint
+    - clickhouselint
+    - ginkgolinter
+    - testifylint
+    - canonicalheader
+    - promlinter
+    - protogetter
+    - spancheck
+    - zerologlint
+    - rowserrcheck
+    - sqlclosecheck
+    - unqueryvet
+    - gosmopolitan
+    # dep policy we do not need yet
+    - depguard
+    - gomodguard
+    - gomodguard_v2
+    - goheader
+    # comment/style wars vs this repo's comment rules
+    - godoclint
+    - godot
+    - godox
+    - lll
+    - wsl
+    - wsl_v5
+    - nlreturn
+    - varnamelen
+    - tagliatelle
+    - tagalign
+    - mnd
+    - ireturn
+    - funcorder
+    - decorder
+    - grouper
+    - inamedparam
+    - exhaustruct
+    - exhaustruct_v5
+    - nonamedreturns
+    - noinlineerr
+    - embeddedstructfieldcheck
+    - interfacebloat
+    - iotamixing
+    - importas
+    - iface
+    - dupword
+    # wrap-everything / sentinel-everything is not this codebase
+    - wrapcheck
+    - err113
+    # we chose package tests, not tests_test
+    - testpackage
+    - containedctx
+    - goconst
+    - perfsprint
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - hugeParam
+        - unnamedResult
+    errcheck:
+      check-type-assertions: true
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+    staticcheck:
+      checks: ["all"]
+    exhaustive:
+      default-signifies-exhaustive: true
+    sloglint:
+      no-mixed-args: true
+      kv-only: true
+      no-global: all
+      context: scope
+    gosec:
+      excludes: []
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          disabled: true
+        - name: increment-decrement
+        - name: var-naming
+        - name: package-comments
+          disabled: true
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - path: '^cmd/'
+        linters:
+          - gochecknoglobals
+          - gochecknoinits
+      - path: '^internal/resolve/helpers\.go'
+        linters:
+          - gochecknoglobals
+      - path: '^tests/'
+        linters:
+          - dupl
+          - goconst
+          - wrapcheck
+          - err113
+          - gosec
+          - paralleltest
+          - tparallel
+          - funlen
+          - gocyclo
+          - cyclop
+          - gocognit
+          - maintidx
+          - nestif
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - sysup-go

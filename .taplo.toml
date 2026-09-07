@@ -1,0 +1,20 @@
+include = [ "**/*.toml" ]
+exclude  = []
+
+[schema]
+path    = "taplo://taplo.toml"
+enabled = true
+
+#[formatting]
+
+[[rule]]
+include = [ "**/*.toml", ".taplo.toml" ]
+
+[rule.formatting]
+crlf                 = false
+align_entries        = true
+align_comments       = true
+array_trailing_comma = true
+column_width         = 100   # gofmt has no width knob; this is for TOML only
+inline_table_expand  = false
+compact_arrays       = false #
