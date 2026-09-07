@@ -31,6 +31,30 @@ Raw `git commit` / `checkout` / `reset` corrupts the jj graph.
 - Conventional Commits, lowercase, no emoji, no AI trailer.
 - Do not commit or push unless asked (except when the user asked).
 
+## Task runner (just)
+
+This repo uses `just` and the `justfile` at the repo root, not `make`/`Makefile`.
+It is the single entry point for build/test/lint/format/clean. Agents and
+humans MUST use the just recipes; NEVER invoke bare `go build`, `go test`,
+`go vet`, `go fmt`, or `go clean` directly. `just --list` is authoritative.
+
+Canonical recipes (alias in parens):
+
+- `just build` (`b`) - debug build to `bin/sysup-go`.
+- `just build-release` (`br`) - `CGO_ENABLED=0`, `-ldflags "-s -w -buildid="`, `-trimpath`, `-buildvcs=false`, `-mod=readonly`.
+- `just check` (`c`) - `go vet ./...`.
+- `just clean` (`cl`) - remove `bin/` and `coverage.out`.
+- `just format` (`f`) - `go fmt ./...`.
+- `just test` (`t`) - `go test ./tests -count=1`. Extra args pass through (`just t -v`).
+- `just cover` - same tests with `-coverpkg=./...` (needed: tests are a separate package).
+- `just run *args` - debug build, then run the binary (`just run list`).
+- `just all` (`a`) - full pipeline in order: `format -> check -> test -> build`.
+- `just reset` (no alias) - `clean -> all`.
+
+Use the short aliases when convenient (`just b`, `just t`, etc.). `reset`
+has no alias by design; always call it as `just reset`. Prefer `just`
+over any Makefile task runner for platform-agnostic recipes.
+
 ## Layout
 
 - `main.go` at repo root. Do not move it under `cmd/`.
@@ -40,6 +64,8 @@ Raw `git commit` / `checkout` / `reset` corrupts the jj graph.
 - One package per directory. Package name = directory name, short,
   lowercase, no underscores, no stutter (`config.Load` not
   `config.LoadConfig` unless the extra word is required).
+- Tests live in `tests/` as `package tests` (black-box). Do not put
+  `*_test.go` next to source. `just test` runs `./tests` only.
 
 ## Hard rules (this project)
 
