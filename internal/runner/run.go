@@ -7,41 +7,48 @@ import (
 	"sysup-go/internal/program"
 )
 
-type metaer interface {
-	Meta() program.Spec
-}
-
-// RunAll runs steps in order. The first error stops the rest.
 func RunAll(ctx context.Context, log *slog.Logger, steps []program.Runner) error {
 	if log == nil {
 		log = slog.Default()
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, step := range steps {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		name := stepName(step)
+		name := step.Meta().Name
 		log.Info("running", "step", name)
-		if p, ok := step.(program.PreRunner); ok {
-			if err := p.PreRun(ctx); err != nil {
-				return &StepError{Name: name, Err: err}
-			}
-		}
-		if err := step.Run(ctx); err != nil {
-			return &StepError{Name: name, Err: err}
-		}
-		if p, ok := step.(program.PostRunner); ok {
-			if err := p.PostRun(ctx); err != nil {
-				return &StepError{Name: name, Err: err}
-			}
+		if err := runOne(ctx, step, name); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func stepName(step program.Runner) string {
-	if m, ok := step.(metaer); ok {
-		return m.Meta().Name
+func runOne(ctx context.Context, step program.Runner, name string) error {
+	if err := maybePre(ctx, step); err != nil {
+		return &StepError{Name: name, Err: err}
 	}
-	return "step"
+	if err := step.Run(ctx); err != nil {
+		return &StepError{Name: name, Err: err}
+	}
+	if err := maybePost(ctx, step); err != nil {
+		return &StepError{Name: name, Err: err}
+	}
+	return nil
+}
+
+func maybePre(ctx context.Context, step program.Runner) error {
+	hook, ok := step.(program.PreRunner)
+	if !ok {
+		return nil
+	}
+	return hook.PreRun(ctx)
+}
+
+func maybePost(ctx context.Context, step program.Runner) error {
+	hook, ok := step.(program.PostRunner)
+	if !ok {
+		return nil
+	}
+	return hook.PostRun(ctx)
 }

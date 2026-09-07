@@ -2,7 +2,6 @@ package runner
 
 import "fmt"
 
-// StepError is a failure from one plan step.
 type StepError struct {
 	Name string
 	Err  error
