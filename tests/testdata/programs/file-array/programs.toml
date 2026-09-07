@@ -1,11 +1,11 @@
 [[program]]
-name = "mirror"
-alias = "m"
+name        = "mirror"
+alias       = "m"
 description = "mirrors"
-command = ["rate-mirrors"]
+command     = [ "rate-mirrors" ]
 
 [[program]]
-name = "pacman"
-alias = "p"
+name        = "pacman"
+alias       = "p"
 description = "pkgs"
-command = ["pacman", "-Syu"]
+command     = [ "pacman", "-Syu" ]

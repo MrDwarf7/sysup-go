@@ -1,3 +1,3 @@
-name = "mirror"
-alias = "p"
-command = ["echo", "a"]
+name    = "mirror"
+alias   = "p"
+command = [ "echo", "a" ]

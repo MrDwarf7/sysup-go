@@ -1,2 +1,2 @@
-name = "a"
-command = ["echo", "a"]
+name    = "a"
+command = [ "echo", "a" ]

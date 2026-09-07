@@ -1,5 +1,5 @@
 [[program]]
-name = "from-file"
-alias = "f"
+name        = "from-file"
+alias       = "f"
 description = "file"
-command = ["echo", "file"]
+command     = [ "echo", "file" ]

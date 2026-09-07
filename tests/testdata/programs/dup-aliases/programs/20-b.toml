@@ -1,3 +1,3 @@
-name = "pacman"
-alias = "p"
-command = ["echo", "b"]
+name    = "pacman"
+alias   = "p"
+command = [ "echo", "b" ]
