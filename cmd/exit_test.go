@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"sysup-go/internal/program"
+	"sysup-go/internal/runner"
 )
 
 func TestExitCode(t *testing.T) {
@@ -18,6 +19,7 @@ func TestExitCode(t *testing.T) {
 		{name: "unknown skip", err: &program.SkipError{Token: "nope"}, want: 3},
 		{name: "unknown flag", err: errors.New("unknown flag: --bogus"), want: 2},
 		{name: "other", err: errors.New("config: read missing"), want: 1},
+		{name: "step failure", err: &runner.StepError{Name: "aur", Err: errors.New("exit 1")}, want: 5},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
