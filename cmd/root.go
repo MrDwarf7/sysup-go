@@ -90,7 +90,7 @@ func initConfig() {
 		}
 		viper.SetConfigFile(cfgFile)
 	} else {
-		dir, err := config.AppDir(nil, fsys)
+		dir, err := config.EnsureAppDir(fsys)
 		cobra.CheckErr(err)
 		viper.AddConfigPath(dir)
 		viper.SetConfigType(config.ConfigType)

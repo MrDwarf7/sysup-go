@@ -9,6 +9,9 @@ import (
 )
 
 func locate() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, AppName), nil
+	}
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", &Error{Op: "dir", Err: err}
@@ -32,6 +35,22 @@ func AppDir(v *viper.Viper, fsys afero.Fs) (string, error) {
 	}
 	if !info.IsDir() {
 		return "", &Error{Op: "dir", Path: dir, Err: errNotDir}
+	}
+	return dir, nil
+}
+
+func EnsureAppDir(fsys afero.Fs) (string, error) {
+	if fsys == nil {
+		fsys = afero.NewOsFs()
+	}
+
+	dir, err := locate()
+	if err != nil {
+		return "", err
+	}
+
+	if err := fsys.MkdirAll(dir, 0o755); err != nil {
+		return "", &Error{Op: "dir", Path: dir, Err: err}
 	}
 	return dir, nil
 }

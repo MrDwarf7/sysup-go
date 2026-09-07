@@ -13,7 +13,7 @@ import (
 )
 
 func loadSpecs() ([]program.Spec, error) {
-	dir, err := config.AppDir(viper.GetViper(), afero.NewOsFs())
+	dir, err := config.EnsureAppDir(afero.NewOsFs())
 	if err != nil {
 		return nil, err
 	}
