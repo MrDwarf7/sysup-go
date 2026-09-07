@@ -119,7 +119,7 @@ filter_commits = false
 # fail_on_unmatched_commit = false
 
 # An array of link parsers for extracting external references, and turning them into URLs, using regex.
-link_parsers = []
+link_parsers = [  ]
 
 # Include only the tags that belong to the current branch.
 # use_branch_tags = false

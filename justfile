@@ -72,8 +72,12 @@ clean:
 
 # format all Go sources (f)
 alias f := format
-format:
+format: taplo-format
     go fmt {{pkg}}
+
+# format TOML files via taplo
+taplo-format:
+    taplo format
 
 # fail if any file is not gofmt (CI)
 format-check:
