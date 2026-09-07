@@ -28,7 +28,7 @@ cmd.Execute
   list / validate / run  (04)
   signal.NotifyContext
     sudo.KeepAlive       (06)
-    mise.Begin + defer   (09)
+    mise.Begin + defer   (09; did_strip)
     runner.RunAll        (05, then 07, 08)
     cache.Sweep          (10)
     shutdown             (11)
@@ -46,7 +46,7 @@ cmd.Execute
 | 06 | [sudo](06-sudo.md) | keepalive goroutine | 05 |
 | 07 | [continue](07-continue.md) | accumulate errors | 05 |
 | 08 | [waves](08-waves.md) | `parallel` + errgroup | 05, 07 |
-| 09 | [mise](09-mise.md) | deactivate / defer | 05 |
+| 09 | [mise](09-mise.md) | PATH strip + `did_strip` | 05 |
 | 10 | [cache](10-cache.md) | end-of-run dir sweep | 01, 05 |
 | 11 | [shutdown](11-shutdown.md) | countdown + `shutdown -h` | 05, 07 |
 

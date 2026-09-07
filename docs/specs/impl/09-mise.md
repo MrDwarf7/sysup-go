@@ -1,26 +1,31 @@
 ---
 title: "09 mise"
-description: "Deactivate mise before the plan; defer reactivate; mise up only on a clean run."
-keywords: [impl, mise, defer, wrap]
+description: "Strip mise shims from child PATH once; restore only if did_strip; mise up on a clean run."
+keywords: [impl, mise, did_strip, PATH, defer]
 order: 29
 ---
 
 # 09 mise
 
-Mise shims can shadow system tools. Wrap the plan: deactivate, run,
-reactivate. `defer` is the cleanup. Not a program.
+Mise shims can shadow system tools. Fish used `deactivate` / `source
+activate` because it was a shell. We are not a shell. Strip the shims
+directory from the env we hand to **child programs**, remember whether
+we did, and only restore if we did.
+
+Not a program.
 
 ## Depends on
 
-05 (RunE exists). 01 (`Config.Mise.Wrap`). 07 (need to know if the
-plan had failures before `mise up`).
+05 (RunE exists). 01 (`Config.Mise.Wrap`). 07 (`planClean` for
+`mise up`).
 
 ## Files
 
 - Create: `internal/mise/wrap.go`
 - Create: `internal/mise/error.go`
 - Create: `internal/mise/wrap_test.go`
-- Modify: `cmd/root.go` around `RunAll`
+- Modify: `cmd/root.go` around `RunAll` / `Exec` env
+- Modify: `internal/program/exec.go` if `Exec` needs an `Env []string`
 
 ## Types
 
@@ -28,101 +33,85 @@ plan had failures before `mise up`).
 package mise
 
 type LookPath func(string) (string, error)
-type Runner func(ctx context.Context, name string, args ...string) error
+
+type State struct {
+    DidStrip bool
+    PathOrig string // set only when DidStrip
+    ShimDir  string // the entry we removed, for tests/logs
+}
+
+func (s State) ChildEnv(base []string) []string
+func (s State) RestoreProcessPath()
 
 type Wrap struct {
     LookPath LookPath
-    Run      Runner
     Log      *slog.Logger
 }
 
-// Begin deactivates if mise exists and wrap is enabled.
-// End reactivates. up is true when the plan had zero failures.
-func (w Wrap) Begin(ctx context.Context, enabled bool) (end func(up bool), err error)
+func (w Wrap) Begin(enabled bool) State
 ```
+
+`Begin` does **not** re-read PATH at End. End uses `State` only.
 
 cmd:
 
 ```
-end, err := miseWrap.Begin(ctx, cfg.Mise.Wrap)
-if err != nil { return err }
-defer func() { end(planClean) }()
+st := miseWrap.Begin(cfg.Mise.Wrap)
+defer st.RestoreProcessPath()
+// pass st.ChildEnv(os.Environ()) into each Exec
+// after RunAll, if st.DidStrip && planClean { mise up }
 ```
-
-`planClean` is a bool the RunE sets false on step errors. Because
-`defer` sees the named result or a closed-over variable, use a
-`clean := true` variable and set it false when `RunAll` returns a
-step failure. Context cancel is not clean.
 
 ## Behaviour
 
-`enabled == false`: `Begin` returns a no-op `end`.
+`enabled == false`: `State{DidStrip: false}`. No PATH walk.
 
-`LookPath("mise")` fails: log info, no-op `end`. Not an error.
+`LookPath("mise")` fails: same, `DidStrip: false`. Log info. Not an
+error.
 
-Otherwise:
+Otherwise, **once** at Begin:
 
-1. `Run(ctx, "mise", "deactivate")`. Failure: log warn, continue
-   (deactivate can fail if already off). Do not abort the plan.
-2. `end(up)`:
-   - `Run(ctx, "mise", "activate", "bash")` is **wrong** for us:
-     Fish did `mise activate fish | source`. We are not a shell.
-     Reactivate for the **user's later interactive shell** is not
-     something a child process can persist into the parent fish.
-     Lock: we only need the rest of **this process** to see system
-     binaries, which deactivate already did by mutating this
-     process environment if `mise deactivate` prints exports...
+1. Resolve shim dir: `MISE_SHIMS_DIR` if set, else
+   `$XDG_DATA_HOME/mise/shims` / `~/.local/share/mise/shims`.
+2. Walk `PATH` **once**. If that dir is an entry, set
+   `DidStrip: true`, `PathOrig: os.Getenv("PATH")`, `ShimDir: dir`,
+   and `os.Setenv("PATH", stripped)` for this process so we do not
+   rebuild env per child from a stale parent PATH. Children inherit
+   the stripped PATH unless `Exec` overrides `Env`.
+3. If the shim dir is not on PATH: `DidStrip: false`. We did not
+   touch anything.
 
-Fish: `mise deactivate` unsets shims in the current shell;
-`mise activate fish | source` restores; `mise up` updates tools.
+`RestoreProcessPath`: if `!DidStrip`, return immediately. If
+`DidStrip`, `os.Setenv("PATH", PathOrig)`. Do not parse PATH again.
 
-In Go we are a subprocess. `mise deactivate` as a child **cannot**
-change our env unless we apply its stdout (env dump) ourselves.
+`mise up`: only if `DidStrip && planClean`. We only update tools when
+we actually took mise out of the way at startup. Dirty/cancel: skip
+`mise up`. `mise up` failure is exit 5 after the plan (log + return
+error from RunE).
 
-Lock this:
-
-- `Begin`: run `mise deactivate --quiet` **or** strip `MISE_*` /
-  shim dir from `os.Environ` if documented. Prefer: execute
-  `mise deactivate` with env dump if mise supports printing shell
-  env; otherwise run the plan with `cmd.Env` inherited after
-  removing the mise shims directory from `PATH`.
-
-Practical v1 (do this):
-
-1. `LookPath("mise")`.
-2. Read `MISE_SHIMS_DIR` or default `~/.local/share/mise/shims`
-   (and `mise bin-paths` if we want later).
-3. For every `Exec`, set `cmd.Env` to current env with that shims
-   dir removed from `PATH`. That is the wrap: children do not see
-   shims.
-4. After a clean plan: `Run(ctx, "mise", "up")`. Failure is a
-   `StepError`-like error from cmd (exit 5) after programs ran.
-5. Do not attempt `activate | source`. The parent fish still has
-   mise; we only care that **our children** skip shims.
-
-This matches the Fish *intent* (do not let mise shadow pacman)
-without pretending a Go process can re-source the parent shell.
-
-If `mise up` is skipped on dirty/crash: `up == false`.
-
-Tests inject PATH lists rather than real mise.
+Do not run `mise deactivate` / `mise activate` / `source`. Do not
+expand env vars inside program `command` arrays.
 
 ## Tests
 
+Inject PATH via `t.Setenv`. Do not require real mise; inject LookPath.
+
 | Case | Expect |
 | --- | --- |
-| wrap false | no LookPath required, end no-op |
-| mise missing | no-op, nil |
-| PATH with shim dir, child `Exec` | child env PATH lacks shim dir |
-| clean end | `mise up` called once |
-| dirty end | `mise up` not called |
+| wrap false | DidStrip false, PATH unchanged |
+| mise missing | DidStrip false, PATH unchanged |
+| shim dir on PATH | DidStrip true, PATHOrig saved, process PATH lacks shim |
+| RestoreProcessPath after strip | PATH equals PathOrig |
+| RestoreProcessPath when !DidStrip | PATH unchanged (no second parse) |
+| DidStrip && clean | `mise up` called once |
+| DidStrip && dirty | `mise up` not called |
+| !DidStrip && clean | `mise up` not called |
 
 ## Out of scope
 
-Hooking Fish `source`. Windows.
+Fish `source`. Windows. Env expansion in recipe `command`.
 
 ## Done when
 
-`go test ./internal/mise/` green. A program `command = ["which",
-"ruby"]` (or similar) does not resolve a mise shim while wrap is on,
-if you have mise locally for a manual check.
+`go test ./internal/mise/` green. Restore is a stored-string write,
+not a second PATH split.

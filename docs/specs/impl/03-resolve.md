@@ -67,21 +67,11 @@ it.
    return it.
 6. Else error: cannot resolve a package manager.
 
-Do not treat "paru" as a reserved program name. This function only
-returns a binary path for callers that need `$PKG_MANAGER` (aur
-program argv can still be a literal `paru` in TOML). Milestone 05
-does not rewrite user argv. Resolve exists so we can substitute or
-check; v1 `cmd validate` prints the resolved path. Runtime rewrite of
-`command[0] == "$PKG_MANAGER"` is **out of scope** unless a later
-goal says otherwise. Document that programs should put the real
-binary in `command`.
-
-Wait: the Fish aur step uses `$PKG_MANAGER`. User programs in TOML
-are argv arrays. If they write `command = ["paru", "-Syu", ...]` they
-bypass resolve. Resolve is still required for validate/diagnostics
-and for cache (10) if we exec the helper. Spec: `PkgManager` result
-is stored on a small `Env` bag passed to the runner for logging and
-for cache. Do not magically rewrite program commands in v1.
+Recipe `command` arrays are literals. The user writes the real
+binary (`paru`, `pacman`). No `$PKG_MANAGER` expansion in v1. Env
+`PKG_MANAGER` only feeds this resolver (validate print, later cache).
+Do not rewrite argv. Expanding env in recipes is a later feature,
+not core.
 
 ## Tests
 
