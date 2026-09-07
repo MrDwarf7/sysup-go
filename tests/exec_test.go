@@ -17,7 +17,7 @@ func TestExecOptionalMissing(t *testing.T) {
 		Spec: program.Spec{
 			Name:     "maybe",
 			Optional: true,
-			Command:  []string{"definitely-not-on-path-sysup-go"},
+			Command:  []string{"definitely-not-on-path-sysup"},
 		},
 		LookPath: func(string) (string, error) {
 			return "", errors.New("not found")
@@ -35,7 +35,7 @@ func TestExecRequiredMissing(t *testing.T) {
 	e := program.Exec{
 		Spec: program.Spec{
 			Name:    "need",
-			Command: []string{"definitely-not-on-path-sysup-go"},
+			Command: []string{"definitely-not-on-path-sysup"},
 		},
 		LookPath: func(string) (string, error) {
 			return "", errors.New("not found")

@@ -54,7 +54,7 @@ func TestPkgManager(t *testing.T) {
 		{
 			name: "empty PKG_MANAGER",
 			env: map[string]*string{
-				resolve.EnvPkgManager: ptr(""),
+				resolve.EnvPkgManager: new(""),
 			},
 			paths: map[string]string{
 				resolve.HelperParu.String(): "/usr/bin/paru",
@@ -66,7 +66,7 @@ func TestPkgManager(t *testing.T) {
 		{
 			name: "PKG_MANAGER set, missing",
 			env: map[string]*string{
-				resolve.EnvPkgManager: ptr("foo"),
+				resolve.EnvPkgManager: new("foo"),
 			},
 			paths: map[string]string{
 				resolve.HelperParu.String(): "/usr/bin/paru",
@@ -78,7 +78,7 @@ func TestPkgManager(t *testing.T) {
 		{
 			name: "PKG_MANAGER set, found",
 			env: map[string]*string{
-				resolve.EnvPkgManager: ptr("foo"),
+				resolve.EnvPkgManager: new("foo"),
 			},
 			paths: map[string]string{
 				"foo":                       "/bin/foo",
@@ -121,8 +121,7 @@ func TestPkgManager(t *testing.T) {
 				if tc.wantCanceled && !errors.Is(err, context.Canceled) {
 					t.Fatalf("PkgManager() error = %v, want context.Canceled", err)
 				}
-				var re *resolve.Error
-				if !errors.As(err, &re) {
+				if _, ok := errors.AsType[*resolve.Error](err); !ok {
 					t.Fatalf("PkgManager() error %v is not *resolve.Error", err)
 				}
 			} else if err != nil {

@@ -16,7 +16,7 @@ type fake struct {
 	ran  *atomic.Int32
 }
 
-func (f fake) Run(ctx context.Context) error {
+func (f fake) Run(_ context.Context) error {
 	f.ran.Add(1)
 	return f.err
 }
@@ -30,7 +30,7 @@ type preFake struct {
 	pre *atomic.Int32
 }
 
-func (p preFake) PreRun(ctx context.Context) error {
+func (p preFake) PreRun(_ context.Context) error {
 	p.pre.Add(1)
 	return nil
 }
@@ -91,7 +91,7 @@ func TestRunAllCancelledBefore(t *testing.T) {
 func TestRunAllPreRun(t *testing.T) {
 	t.Parallel()
 	var ran, pre atomic.Int32
-	step := preFake{fake: fake{name: "p", ran: &ran}, pre: &pre}
+	step := preFake{fake{name: "p", ran: &ran}, &pre}
 	if err := runner.RunAll(context.Background(), discardLog(), []program.Runner{step}); err != nil {
 		t.Fatal(err)
 	}

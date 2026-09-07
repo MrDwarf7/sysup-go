@@ -12,45 +12,19 @@ import (
 	"sysup-go/internal/config"
 )
 
-const specTOML = `[sudo]
-keepalive = true
-interval = "50s"
-
-[mise]
-wrap = true
-
-[cache]
-enabled = true
-include_dirs = []
-exclude_dirs = []
-
-[pkg_manager]
-name = ""
-
-[shutdown]
-force = false
-wait = "1m"
-`
-
 func TestConfigLoad(t *testing.T) {
 	t.Parallel()
-	file := "/" + config.ConfigFileName
 
-	tests := []struct {
+	type tc struct {
 		name    string
-		files   map[string]string
-		path    string
+		fixture string
 		want    config.Config
 		wantErr string
-	}{
+	}
+	cases := []tc{
 		{
-			name: "no file",
-			want: config.Defaults(),
-		},
-		{
-			name:  "valid full toml",
-			files: map[string]string{file: specTOML},
-			path:  file,
+			name:    "valid full toml",
+			fixture: "full.toml",
 			want: func() config.Config {
 				c := config.Defaults()
 				c.Cache.IncludeDirs = []string{}
@@ -59,17 +33,8 @@ func TestConfigLoad(t *testing.T) {
 			}(),
 		},
 		{
-			name: "partial overlay",
-			files: map[string]string{file: `[sudo]
-keepalive = false
-
-[mise]
-wrap = false
-
-[cache]
-enabled = false
-`},
-			path: file,
+			name:    "partial overlay",
+			fixture: "partial.toml",
 			want: func() config.Config {
 				c := config.Defaults()
 				c.Sudo.Keepalive = false
@@ -79,71 +44,73 @@ enabled = false
 			}(),
 		},
 		{
-			name: "bad duration",
-			files: map[string]string{file: `[sudo]
-interval = "nope"
-`},
-			path:    file,
+			name:    "bad duration",
+			fixture: "bad-duration.toml",
 			wantErr: "decode",
 		},
 		{
-			name:    "missing explicit path",
-			path:    "/no/such/" + config.ConfigFileName,
-			wantErr: "read",
-		},
-		{
 			name:    "unknown key",
-			files:   map[string]string{file: "[foo]\nbar = 1\n"},
-			path:    file,
+			fixture: "unknown-key.toml",
 			wantErr: "decode",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			v := memViper(t, tt.files)
-			if tt.path != "" {
-				v.SetConfigFile(tt.path)
-			}
-			got, err := config.Load(v)
-			if tt.wantErr != "" {
-				requireConfigOp(t, err, tt.wantErr)
-				return
-			}
-			if err != nil {
-				t.Fatalf("Load() error = %v", err)
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Load() = %+v, want %+v", got, tt.want)
-			}
-		})
+	for _, backend := range ioBackends() {
+		for _, tt := range cases {
+			t.Run(backend+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+				v, path := configViper(t, tt.fixture, backend)
+				v.SetConfigFile(path)
+				got, err := config.Load(v)
+				if tt.wantErr != "" {
+					requireConfigOp(t, err, tt.wantErr)
+					return
+				}
+				if err != nil {
+					t.Fatalf("Load() error = %v", err)
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("Load() = %+v, want %+v", got, tt.want)
+				}
+			})
+		}
 	}
+
+	t.Run("mem/no file", func(t *testing.T) {
+		t.Parallel()
+		got, err := config.Load(memViper(t, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, config.Defaults()) {
+			t.Errorf("Load() = %+v, want defaults", got)
+		}
+	})
+
+	t.Run("mem/missing explicit path", func(t *testing.T) {
+		t.Parallel()
+		v := memViper(t, nil)
+		v.SetConfigFile("/no/such/" + config.ConfigFileName)
+		_, err := config.Load(v)
+		requireConfigOp(t, err, "read")
+	})
 }
 
 func TestConfigAppDirUsesFileDir(t *testing.T) {
 	t.Parallel()
-	fsys := afero.NewMemMapFs()
-	dir := "/app"
-	path := dir + "/" + config.ConfigFileName
-	if err := fsys.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := afero.WriteFile(fsys, path, []byte("[mise]\nwrap = true\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	path := fixturePath(t, "config", "mise-wrap.toml")
 	v := viper.New()
-	v.SetFs(fsys)
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		t.Fatal(err)
 	}
-	got, err := config.AppDir(v, fsys)
+	got, err := config.AppDir(v, afero.NewOsFs())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != dir {
-		t.Errorf("AppDir = %q, want %q", got, dir)
+	want := fixturePath(t, "config")
+	if got != want {
+		t.Errorf("AppDir = %q, want %q", got, want)
 	}
 }
 
@@ -188,15 +155,7 @@ func TestConfigOriginFrom(t *testing.T) {
 		t.Errorf("empty viper = %+v, want default", o)
 	}
 
-	fsys := afero.NewMemMapFs()
-	path := "/app/" + config.ConfigFileName
-	if err := fsys.MkdirAll("/app", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := afero.WriteFile(fsys, path, []byte("[mise]\nwrap = true\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	v.SetFs(fsys)
+	path := fixturePath(t, "config", "mise-wrap.toml")
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		t.Fatal(err)
