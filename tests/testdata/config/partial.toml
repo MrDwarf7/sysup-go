@@ -1,0 +1,8 @@
+[sudo]
+keepalive = false
+
+[mise]
+wrap = false
+
+[cache]
+enabled = false

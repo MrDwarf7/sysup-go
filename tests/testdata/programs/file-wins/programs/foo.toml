@@ -1,0 +1,4 @@
+name = "from-dir"
+alias = "d"
+description = "dir"
+command = ["echo", "dir"]
