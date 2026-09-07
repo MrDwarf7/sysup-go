@@ -2,9 +2,8 @@ package program
 
 import "fmt"
 
-// Error is a typed failure from Load.
 type Error struct {
-	Op   string // discover, read, decode, validate
+	Op   string
 	Path string
 	Err  error
 }
@@ -26,7 +25,6 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-// SkipError is returned by Filter when a skip token matches no spec.
 type SkipError struct {
 	Token string
 }

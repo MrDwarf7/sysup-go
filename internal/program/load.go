@@ -3,7 +3,7 @@ package program
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
 
@@ -16,75 +16,89 @@ type fileDoc struct {
 	Program []Spec `toml:"program"`
 }
 
-// Load discovers programs from dir/programs.toml or dir/programs/*.toml.
-func Load(dir string) ([]Spec, error) {
-	filePath := filepath.Join(dir, "programs.toml")
-	st, err := os.Stat(filePath)
-	switch {
-	case err == nil && !st.IsDir():
-		return loadFile(filePath)
-	case err == nil:
-		// A directory named programs.toml is not the file registry.
-	case !errors.Is(err, os.ErrNotExist):
-		return nil, &Error{Op: "read", Path: filePath, Err: err}
+type registry uint8
+
+const (
+	registryNone registry = iota
+	registryFile
+	registryDir
+)
+
+func Load(fsys fs.FS) ([]Spec, error) {
+	filePath, dirPath := FileName, DirName
+	fileInfo, fileErr := fs.Stat(fsys, filePath)
+	dirInfo, dirErr := fs.Stat(fsys, dirPath)
+
+	kind, classErr := classify(fileInfo, fileErr, dirInfo, dirErr)
+	if classErr != nil {
+		path := filePath
+		if fileErr == nil || errors.Is(fileErr, fs.ErrNotExist) {
+			path = dirPath
+		}
+		return nil, &Error{Op: "read", Path: path, Err: classErr}
 	}
 
-	dirPath := filepath.Join(dir, "programs")
-	st, err = os.Stat(dirPath)
-	switch {
-	case err == nil && st.IsDir():
-		return loadDir(dirPath)
-	case err == nil:
-		// A file named programs is not the directory registry.
-	case !errors.Is(err, os.ErrNotExist):
-		return nil, &Error{Op: "read", Path: dirPath, Err: err}
+	switch kind {
+	case registryFile:
+		return loadFile(fsys, filePath)
+	case registryDir:
+		return loadDir(fsys, dirPath)
+	default:
+		return nil, &Error{Op: "discover", Path: filePath, Err: errNothingToRun}
 	}
-
-	return nil, &Error{Op: "discover", Path: dir, Err: errNothingToRun}
 }
 
-// Filter drops specs whose Name or Alias is in skip. Remaining order is kept.
+func classify(file fs.FileInfo, fileErr error, dir fs.FileInfo, dirErr error) (registry, error) {
+	if fileErr == nil && !file.IsDir() {
+		return registryFile, nil
+	}
+	if dirErr == nil && dir.IsDir() {
+		return registryDir, nil
+	}
+	if fileErr != nil && !errors.Is(fileErr, fs.ErrNotExist) {
+		return registryNone, fileErr
+	}
+	if dirErr != nil && !errors.Is(dirErr, fs.ErrNotExist) {
+		return registryNone, dirErr
+	}
+	return registryNone, nil
+}
+
 func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	if len(skip) == 0 {
 		return specs, nil
 	}
 
-	tokens := make(map[string]struct{}, len(specs)*2)
+	known := make(map[string]struct{}, len(specs)*2)
 	for _, s := range specs {
-		tokens[s.Name] = struct{}{}
-		if s.Alias != "" {
-			tokens[s.Alias] = struct{}{}
-		}
+		known[s.Name] = struct{}{}
+		known[s.Alias] = struct{}{}
 	}
-	for _, token := range skip {
-		if _, ok := tokens[token]; !ok {
-			return nil, &SkipError{Token: token}
-		}
-	}
+	delete(known, "")
 
 	drop := make(map[string]struct{}, len(skip))
 	for _, token := range skip {
+		if _, ok := known[token]; !ok {
+			return nil, &SkipError{Token: token}
+		}
 		drop[token] = struct{}{}
 	}
 
 	out := make([]Spec, 0, len(specs))
 	for _, s := range specs {
-		if _, ok := drop[s.Name]; ok {
+		_, skipName := drop[s.Name]
+		_, skipAlias := drop[s.Alias]
+		if skipName || skipAlias {
 			continue
-		}
-		if s.Alias != "" {
-			if _, ok := drop[s.Alias]; ok {
-				continue
-			}
 		}
 		out = append(out, s)
 	}
 	return out, nil
 }
 
-func loadFile(path string) ([]Spec, error) {
+func loadFile(fsys fs.FS, path string) ([]Spec, error) {
 	var doc fileDoc
-	if err := decode(path, &doc); err != nil {
+	if err := decode(fsys, path, &doc); err != nil {
 		return nil, err
 	}
 	if len(doc.Program) == 0 {
@@ -92,7 +106,9 @@ func loadFile(path string) ([]Spec, error) {
 	}
 	for i := range doc.Program {
 		doc.Program[i].Source = path
-		if err := validate(doc.Program[i]); err != nil {
+	}
+	for _, s := range doc.Program {
+		if err := validate(s); err != nil {
 			return nil, err
 		}
 	}
@@ -102,23 +118,19 @@ func loadFile(path string) ([]Spec, error) {
 	return doc.Program, nil
 }
 
-func loadDir(dir string) ([]Spec, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, "*.toml"))
+func loadDir(fsys fs.FS, dir string) ([]Spec, error) {
+	matches, err := fs.Glob(fsys, dir+"/*"+filepath.Ext(FileName))
 	if err != nil {
 		return nil, &Error{Op: "discover", Path: dir, Err: err}
 	}
-	names := make([]string, len(matches))
-	for i, m := range matches {
-		names[i] = filepath.Base(m)
-	}
-	slices.Sort(names)
-	if len(names) == 0 {
+	slices.Sort(matches)
+	if len(matches) == 0 {
 		return nil, &Error{Op: "discover", Path: dir, Err: errNothingToRun}
 	}
 
-	specs := make([]Spec, 0, len(names))
-	for _, name := range names {
-		spec, err := loadOne(filepath.Join(dir, name))
+	specs := make([]Spec, 0, len(matches))
+	for _, path := range matches {
+		spec, err := loadOne(fsys, path)
 		if err != nil {
 			return nil, err
 		}
@@ -130,9 +142,9 @@ func loadDir(dir string) ([]Spec, error) {
 	return specs, nil
 }
 
-func loadOne(path string) (Spec, error) {
+func loadOne(fsys fs.FS, path string) (Spec, error) {
 	var spec Spec
-	if err := decode(path, &spec); err != nil {
+	if err := decode(fsys, path, &spec); err != nil {
 		return Spec{}, err
 	}
 	spec.Source = path
@@ -142,8 +154,8 @@ func loadOne(path string) (Spec, error) {
 	return spec, nil
 }
 
-func decode(path string, v any) error {
-	f, err := os.Open(path)
+func decode(fsys fs.FS, path string, v any) error {
+	f, err := fsys.Open(path)
 	if err != nil {
 		return &Error{Op: "read", Path: path, Err: err}
 	}
@@ -172,7 +184,6 @@ func validate(s Spec) error {
 
 func unique(specs []Spec) error {
 	names := make(map[string]string, len(specs))
-	aliases := make(map[string]string, len(specs))
 	for _, s := range specs {
 		if prev, ok := names[s.Name]; ok {
 			return &Error{
@@ -182,6 +193,10 @@ func unique(specs []Spec) error {
 			}
 		}
 		names[s.Name] = s.Source
+	}
+
+	aliases := make(map[string]string, len(specs))
+	for _, s := range specs {
 		if s.Alias == "" {
 			continue
 		}
