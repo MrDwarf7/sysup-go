@@ -4,47 +4,24 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
+
+	"github.com/spf13/afero"
+	"github.com/spf13/viper"
 
 	"sysup-go/internal/config"
 	"sysup-go/internal/program"
 )
 
-func appDir() (string, error) {
-	if cfgFile != "" {
-		return filepath.Dir(cfgFile), nil
-	}
-	return config.Dir()
-}
-
 func loadSpecs() ([]program.Spec, error) {
-	dir, err := appDir()
+	dir, err := config.AppDir(viper.GetViper(), afero.NewOsFs())
 	if err != nil {
 		return nil, err
 	}
-	specs, err := program.Load(dir)
+	specs, err := program.Load(os.DirFS(dir))
 	if err != nil {
 		return nil, err
 	}
-	return program.Filter(specs, skip)
-}
-
-func configLabel() (string, error) {
-	if cfgFile != "" {
-		return cfgFile, nil
-	}
-	dir, err := config.Dir()
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, "config.toml")
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return "defaults", nil
-		}
-		return "", err
-	}
-	return path, nil
+	return program.Filter(specs, viper.GetStringSlice("skip"))
 }
 
 func printList(w io.Writer, specs []program.Spec) error {

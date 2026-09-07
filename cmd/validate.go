@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"sysup-go/internal/config"
 	"sysup-go/internal/resolve"
@@ -16,11 +17,7 @@ var validateCmd = &cobra.Command{
 	Short: "Parse config and programs without running them",
 	Long:  "Load config, discover programs, resolve PKG_MANAGER, and apply --skip. Does not exec recipes.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		label, err := configLabel()
-		if err != nil {
-			return err
-		}
-		cfg, err := config.Load(cfgFile)
+		cfg, err := config.Unmarshal(viper.GetViper())
 		if err != nil {
 			return err
 		}
@@ -37,6 +34,11 @@ var validateCmd = &cobra.Command{
 			return err
 		}
 		out := cmd.OutOrStdout()
+		origin := config.OriginFrom(viper.GetViper())
+		label := origin.Kind.String()
+		if origin.Kind == config.KindFile {
+			label = origin.Path
+		}
 		if _, err := fmt.Fprintf(out, "config:  %s\n", label); err != nil {
 			return err
 		}

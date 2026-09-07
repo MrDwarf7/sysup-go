@@ -8,7 +8,10 @@ import (
 	"sysup-go/internal/runner"
 )
 
-func exitCode(err error) int {
+// Maps a command error to the process status. Cobra's Execute returns
+// error; the OS still needs a number. A function so tests can drive the
+// table without os.Exit killing the test process.
+func ExitCode(err error) int {
 	if err == nil {
 		return 0
 	}

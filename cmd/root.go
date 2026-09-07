@@ -22,15 +22,22 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"sysup-go/internal/config"
+	"sysup-go/internal/program"
 )
 
+var cfgFile string
+
 var (
-	cfgFile       string
 	skip          []string
 	continueOnErr bool
 	noCache       bool
@@ -40,45 +47,84 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "sysup-go",
+	Use:   config.AppName,
 	Short: "System update orchestrator",
-	Long: `sysup-go runs an ordered list of user-defined programs from
-$XDG_CONFIG_HOME/sysup-go (programs.toml or programs/*.toml).
+	Long: `Runs user-defined programs from $XDG_CONFIG_HOME/` + config.AppName +
+		` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
 
 -s / --skip drops programs by name or alias.
--c / --continue accumulates program errors instead of stopping (unused until later).
-These flags are not the same: -c is continue, -s c skips the program aliased c.`,
+-c / --continue accumulates program errors instead of stopping.`,
 }
 
-// Execute runs the root command and maps errors to process exit codes.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(exitCode(err))
+		os.Exit(ExitCode(err))
 	}
 }
 
 func init() {
+	cobra.OnInitialize(initConfig)
+
 	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/sysup-go/config.toml)")
+	pf.StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/"+config.AppName+"/"+config.ConfigFileName+")")
 	pf.StringSliceVarP(&skip, "skip", "s", nil, "skip programs by name or alias")
 	pf.BoolVarP(&continueOnErr, "continue", "c", false, "continue after program errors")
 	pf.BoolVar(&noCache, "no-cache", false, "skip end-of-run cache sweep")
 	pf.BoolVarP(&doShutdown, "shutdown", "d", false, "shut down after a clean run")
 	pf.BoolVar(&forceShutdown, "force-shutdown", false, "shut down even if programs failed")
 	pf.StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
+
+	cobra.CheckErr(viper.BindPFlags(pf))
+}
+
+func initConfig() {
+	fsys := afero.NewOsFs()
+	viper.SetFs(fsys)
+
+	if cfgFile != "" {
+		info, err := fsys.Stat(cfgFile)
+		cobra.CheckErr(err)
+		if info.IsDir() {
+			cobra.CheckErr(fmt.Errorf("config path is a directory: %s", cfgFile))
+		}
+		viper.SetConfigFile(cfgFile)
+	} else {
+		dir, err := config.AppDir(nil, fsys)
+		cobra.CheckErr(err)
+		viper.AddConfigPath(dir)
+		viper.SetConfigType(config.ConfigType)
+		viper.SetConfigName(config.ConfigName)
+	}
+
+	viper.AutomaticEnv()
+
+	err := viper.ReadInConfig()
+	if err == nil {
+		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		fileViper := viper.New()
+		fileViper.SetFs(fsys)
+		fileViper.SetConfigFile(viper.ConfigFileUsed())
+		fileViper.SetConfigType(config.ConfigType)
+		cobra.CheckErr(fileViper.ReadInConfig())
+		_, err := config.UnmarshalStrict(fileViper)
+		cobra.CheckErr(err)
+		return
+	}
+	if cfgFile != "" {
+		cobra.CheckErr(err)
+		return
+	}
+	var notFound viper.ConfigFileNotFoundError
+	if errors.As(err, &notFound) {
+		return
+	}
+	cobra.CheckErr(err)
 }
 
 func newLogger() *slog.Logger {
 	var lvl slog.Level
-	switch strings.ToLower(logLevel) {
-	case "debug":
-		lvl = slog.LevelDebug
-	case "warn":
-		lvl = slog.LevelWarn
-	case "error":
-		lvl = slog.LevelError
-	default:
+	if err := lvl.UnmarshalText([]byte(viper.GetString("log-level"))); err != nil {
 		lvl = slog.LevelInfo
 	}
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
