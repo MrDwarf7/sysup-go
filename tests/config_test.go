@@ -3,6 +3,7 @@ package tests
 import (
 	"errors"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -115,6 +116,10 @@ func TestConfigAppDirUsesFileDir(t *testing.T) {
 }
 
 func TestConfigAppDirMissing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("XDG_CONFIG_HOME is not used for config dir resolution on Windows")
+	}
+
 	t.Setenv("XDG_CONFIG_HOME", "/xdg-missing")
 	_, err := config.AppDir(nil, afero.NewMemMapFs())
 	if err == nil {
@@ -130,6 +135,10 @@ func TestConfigAppDirMissing(t *testing.T) {
 }
 
 func TestConfigAppDirExists(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("XDG_CONFIG_HOME is not used for config dir resolution on Windows")
+	}
+
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 	fsys := afero.NewMemMapFs()
 	want := "/xdg/" + config.AppName
