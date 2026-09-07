@@ -1,15 +1,18 @@
 package config
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
-// Error is a config directory or file failure.
+var errNotDir = errors.New("not a directory")
+
 type Error struct {
-	Op   string // "dir", "read", "decode"
+	Op   string
 	Path string
 	Err  error
 }
 
-// Error implements the error interface.
 func (e *Error) Error() string {
 	if e.Path == "" {
 		return fmt.Sprintf("config: %s: %v", e.Op, e.Err)
@@ -17,7 +20,6 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("config: %s %s: %v", e.Op, e.Path, e.Err)
 }
 
-// Unwrap returns the underlying error.
 func (e *Error) Unwrap() error {
 	return e.Err
 }
