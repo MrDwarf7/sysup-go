@@ -107,16 +107,15 @@ func initConfig() {
 		fileViper.SetConfigFile(viper.ConfigFileUsed())
 		fileViper.SetConfigType(config.ConfigType)
 		cobra.CheckErr(fileViper.ReadInConfig())
-		_, err := config.UnmarshalStrict(fileViper)
-		cobra.CheckErr(err)
+		_, strictErr := config.UnmarshalStrict(fileViper)
+		cobra.CheckErr(strictErr)
 		return
 	}
 	if cfgFile != "" {
 		cobra.CheckErr(err)
 		return
 	}
-	var notFound viper.ConfigFileNotFoundError
-	if errors.As(err, &notFound) {
+	if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); ok {
 		return
 	}
 	cobra.CheckErr(err)

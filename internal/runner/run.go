@@ -16,7 +16,7 @@ func RunAll(ctx context.Context, log *slog.Logger, steps []program.Runner) error
 	}
 	for _, step := range steps {
 		name := step.Meta().Name
-		log.Info("running", "step", name)
+		log.InfoContext(ctx, "running", "step", name)
 		if err := runOne(ctx, step, name); err != nil {
 			return err
 		}

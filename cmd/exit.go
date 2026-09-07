@@ -15,12 +15,10 @@ func ExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	var skipErr *program.SkipError
-	if errors.As(err, &skipErr) {
+	if _, ok := errors.AsType[*program.SkipError](err); ok {
 		return 3
 	}
-	var stepErr *runner.StepError
-	if errors.As(err, &stepErr) {
+	if _, ok := errors.AsType[*runner.StepError](err); ok {
 		return 5
 	}
 	msg := err.Error()

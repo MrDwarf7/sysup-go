@@ -41,7 +41,7 @@ func (e Exec) Run(ctx context.Context) error {
 		if log == nil {
 			log = slog.Default()
 		}
-		log.Info("skipping missing optional program", "name", e.Spec.Name, "argv0", argv0)
+		log.InfoContext(ctx, "skipping missing optional program", "name", e.Spec.Name, "argv0", argv0)
 		return nil
 	}
 	if err != nil {

@@ -16,7 +16,7 @@ var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Parse config and programs without running them",
 	Long:  "Load config, discover programs, resolve PKG_MANAGER, and apply --skip. Does not exec recipes.",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, err := config.Unmarshal(viper.GetViper())
 		if err != nil {
 			return err

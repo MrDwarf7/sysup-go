@@ -11,7 +11,7 @@ import (
 	"sysup-go/internal/runner"
 )
 
-func runPlan(cmd *cobra.Command, args []string) error {
+func runPlan(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

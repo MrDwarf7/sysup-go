@@ -39,8 +39,7 @@ func Load(v *viper.Viper) (Config, error) {
 		return Defaults(), nil
 	}
 	if err := v.ReadInConfig(); err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if errors.As(err, &notFound) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); ok {
 			return Unmarshal(v)
 		}
 		path := v.ConfigFileUsed()
@@ -54,8 +53,7 @@ func Load(v *viper.Viper) (Config, error) {
 
 func wrapRead(path string, err error) error {
 	op := "read"
-	var parseErr viper.ConfigParseError
-	if errors.As(err, &parseErr) {
+	if _, ok := errors.AsType[viper.ConfigParseError](err); ok {
 		op = "decode"
 	}
 	return &Error{Op: op, Path: path, Err: err}

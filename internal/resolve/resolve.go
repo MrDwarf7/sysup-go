@@ -80,7 +80,10 @@ func (r Resolver) probeFallbacks(ctx context.Context) (string, error) {
 		wg.Add(1)
 		go func(i int, helper Helper) {
 			defer wg.Done()
-			path, _ := r.LookPath(helper.String())
+			path, err := r.LookPath(helper.String())
+			if err != nil {
+				return
+			}
 			paths[i] = path
 		}(i, helper)
 	}
