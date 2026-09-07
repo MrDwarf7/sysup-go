@@ -3,15 +3,19 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 )
 
 func locate() (string, error) {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, AppName), nil
+	if runtime.GOOS != "windows" {
+		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+			return filepath.Join(xdg, AppName), nil
+		}
 	}
+
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", &Error{Op: "dir", Err: err}
