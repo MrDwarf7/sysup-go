@@ -103,7 +103,7 @@ func TestConfigAppDirFromXDG(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	fsys := afero.NewOsFs()
-	want := filepath.Join(xdg, config.AppName)
+	want := expectedAppDir(t, xdg)
 
 	got, err := config.AppDir(fsys)
 	if err != nil {
@@ -124,7 +124,7 @@ func TestConfigAppDirFromXDG(t *testing.T) {
 func TestConfigAppDirNilFs(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
-	want := filepath.Join(xdg, config.AppName)
+	want := expectedAppDir(t, xdg)
 
 	got, err := config.AppDir(nil)
 	if err != nil {
@@ -138,7 +138,7 @@ func TestConfigAppDirNilFs(t *testing.T) {
 func TestConfigAppDirCreatesMissing(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg-missing")
 	fsys := afero.NewMemMapFs()
-	want := "/xdg-missing/" + config.AppName
+	want := expectedAppDir(t, "/xdg-missing")
 
 	got, err := config.AppDir(fsys)
 	if err != nil {
@@ -159,7 +159,7 @@ func TestConfigAppDirCreatesMissing(t *testing.T) {
 func TestConfigAppDirExists(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 	fsys := afero.NewMemMapFs()
-	want := "/xdg/" + config.AppName
+	want := expectedAppDir(t, "/xdg")
 	if err := fsys.MkdirAll(want, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestConfigAppDirExists(t *testing.T) {
 func TestConfigAppConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 	fsys := afero.NewMemMapFs()
-	want := "/xdg/" + config.AppName + "/" + config.ConfigFileName
+	want := filepath.Join(expectedAppDir(t, "/xdg"), config.ConfigFileName)
 
 	got, err := config.AppConfig(fsys)
 	if err != nil {

@@ -19,13 +19,21 @@ import (
 func TestRuntimeErrorOmitsUsage(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
-	dir := filepath.Join(xdg, config.AppName)
+	dir := expectedAppDir(t, xdg)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	cfg := filepath.Join(dir, config.ConfigFileName)
+	_, existed := os.Stat(cfg)
 	if err := os.WriteFile(cfg, []byte("# sysup default config.\n"), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	if errors.Is(existed, fs.ErrNotExist) {
+		t.Cleanup(func() {
+			if err := os.Remove(cfg); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("cleanup %s: %v", cfg, err)
+			}
+		})
 	}
 
 	root := cmd.NewRoot()
@@ -69,6 +77,8 @@ func TestCobraMachineryDoesNotWriteConfig(t *testing.T) {
 	}
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			path := filepath.Join(expectedAppDir(t, xdg), config.ConfigFileName)
+			_, before := os.Stat(path)
 			root := cmd.NewRoot()
 			var out bytes.Buffer
 			root.SetOut(&out)
@@ -77,8 +87,8 @@ func TestCobraMachineryDoesNotWriteConfig(t *testing.T) {
 			if err := root.Execute(); err != nil {
 				t.Fatalf("Execute(%v) = %v\n%s", args, err, out.String())
 			}
-			path := filepath.Join(xdg, config.AppName, config.ConfigFileName)
-			if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+			_, after := os.Stat(path)
+			if errors.Is(before, fs.ErrNotExist) && after == nil {
 				t.Fatalf("wrote %s for %v", path, args)
 			}
 		})

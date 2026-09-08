@@ -17,6 +17,20 @@ import (
 	"sysup-go/internal/program"
 )
 
+// expectedAppDir is where AppDir looks. Unix honours XDG_CONFIG_HOME
+// (unixXDG). Windows UserConfigDir is %AppData%; XDG is ignored.
+func expectedAppDir(t *testing.T, unixXDG string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		base, err := os.UserConfigDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Join(base, config.AppName)
+	}
+	return filepath.Join(unixXDG, config.AppName)
+}
+
 func fixturePath(t *testing.T, parts ...string) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
