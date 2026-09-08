@@ -60,9 +60,9 @@ it.
    fallthrough. Hit => return that path (or the name; pick **path**
    from LookPath so later exec is unambiguous).
 4. Else start two goroutines: `LookPath("paru")` and `LookPath("yay")`.
-   Wait with a small `errgroup` or `sync.WaitGroup` + results on
-   channels; both must finish or `ctx` cancel. Both found: **paru
-   wins**. One found: that one. Neither: fall through.
+   Each sends its path on a channel. Receive both or `ctx` cancel.
+   Prefer `FallbackHelpers` order (paru then yay). Neither: fall
+   through.
 5. `cfgName` non-empty: `LookPath(cfgName)`. Miss => error. Hit =>
    return it.
 6. Else error: cannot resolve a package manager.

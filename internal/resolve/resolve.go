@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 )
 
 type LookPath func(file string) (string, error)
@@ -69,41 +68,59 @@ func (r Resolver) look(ctx context.Context, name string) (string, error) {
 	return path, nil
 }
 
+type hit struct {
+	helper Helper
+	path   string
+}
+
 func (r Resolver) probeFallbacks(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	found, err := collectHits(ctx, startProbes(ctx, r.LookPath))
+	if err != nil {
+		return "", err
+	}
+	return pickHelper(found), nil
+}
 
-	paths := make([]string, len(FallbackHelpers))
-	var wg sync.WaitGroup
-	for i, helper := range FallbackHelpers {
-		wg.Add(1)
-		go func(i int, helper Helper) {
-			defer wg.Done()
-			path, err := r.LookPath(helper.String())
+func startProbes(ctx context.Context, look LookPath) <-chan hit {
+	ch := make(chan hit, len(FallbackHelpers))
+	for _, helper := range FallbackHelpers {
+		go func(h Helper) {
+			path, err := look(h.String())
 			if err != nil {
-				return
+				path = ""
 			}
-			paths[i] = path
-		}(i, helper)
+			select {
+			case ch <- hit{helper: h, path: path}:
+			case <-ctx.Done():
+			}
+		}(helper)
 	}
+	return ch
+}
 
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case <-done:
-	}
-
-	for _, path := range paths {
-		if path != "" {
-			return path, nil
+func collectHits(ctx context.Context, ch <-chan hit) (map[Helper]string, error) {
+	found := make(map[Helper]string, len(FallbackHelpers))
+	for range FallbackHelpers {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case h := <-ch:
+			if h.path != "" {
+				found[h.helper] = h.path
+			}
 		}
 	}
-	return "", nil
+	return found, nil
+}
+
+func pickHelper(found map[Helper]string) string {
+	for _, helper := range FallbackHelpers {
+		if path := found[helper]; path != "" {
+			return path
+		}
+	}
+	return ""
 }
