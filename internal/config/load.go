@@ -38,7 +38,9 @@ func Load(v *viper.Viper) (Config, error) {
 	if v == nil {
 		return Defaults(), nil
 	}
-	if err := v.ReadInConfig(); err != nil {
+	err := v.ReadInConfig()
+	v.AutomaticEnv()
+	if err != nil {
 		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); ok {
 			return Unmarshal(v)
 		}

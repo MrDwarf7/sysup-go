@@ -3,18 +3,22 @@
 Port of the Fish `sysup` orchestrator to Go. Run an ordered list of user-defined programs from TOML config -- no rebuild needed.
 
 ```
-sysup-go            # run the plan
-sysup-go list       # show programs in order
-sysup-go validate   # check config without running
-sysup-go -c         # continue on errors
-sysup-go -s pacman  # skip a program by name or alias
+sysup-go                  # run the plan
+sysup-go list             # show programs in order
+sysup-go validate         # check config without running
+sysup-go --generate-config  # write default config.toml and exit
+sysup-go -c               # continue on errors
+sysup-go -s pacman        # skip a program by name or alias
 ```
 
 ## What It Does
 
 You write TOML files describing programs (commands to run, in order). sysup-go executes them sequentially, with optional waves (parallel groups), sudo keepalive, mise wrapping, and end-of-run cache sweeps. Programs are just argv arrays -- no shell, no magic filenames.
 
-Config lives in `$XDG_CONFIG_HOME/sysup-go/`:
+Config lives in `$XDG_CONFIG_HOME/sysup/` (`AppDir` / `AppConfig`).
+Missing or empty `config.toml` is written from `Defaults()` and the
+process exits so you can edit it. `--generate-config` does the same
+on demand.
 
 ```
 config.toml         # our behavior (sudo, mise, cache, shutdown)

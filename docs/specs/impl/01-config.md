@@ -73,10 +73,16 @@ decode error.
 
 ## Behaviour
 
-1. `Dir` uses `os.UserConfigDir` (honours `XDG_CONFIG_HOME` on Linux).
-   Join `"sysup-go"`. Do not mkdir; load does not create the tree.
-2. Missing default `config.toml`: return `Defaults()`, not an error.
+1. `AppDir` uses `os.UserConfigDir` (honours `XDG_CONFIG_HOME` on
+   Linux). Join `AppName`. `MkdirAll` the directory. `AppConfig` is
+   `AppDir` joined with `config.toml`. That pair is the only path.
+2. Default `config.toml` missing or zero bytes: write `Defaults()` to
+   `AppConfig`, print the path on stderr, exit 0. Next run loads the
+   file. `--generate-config` does the same on demand. A non-empty file
+   is not overwritten (`Op: "generate"`, unwraps `fs.ErrExist`).
 3. `--config` / `Load(explicit)` and the file is missing: `Error{Op:"read"}`.
+   Explicit `--config` does not auto-write; `--generate-config --config
+   PATH` writes that path if missing or empty.
 4. Present but invalid TOML: `Error{Op:"decode"}`.
 5. Unknown keys in config.toml: error (fail fast). Wire viper /
    mapstructure so unused keys are not silently dropped.
@@ -85,19 +91,24 @@ decode error.
    is fine. Pass `*slog.Logger` into later constructors; do not call
    `slog.SetDefault` except as a last resort in `main`.
 
-Viper: `SetConfigType("toml")`, `SetConfigName("config")`,
-`AddConfigPath(dir)`. Do not search `$HOME/.sysup-go.yaml`.
+Viper: `SetConfigFile(AppConfig())` (or `--config`), `SetConfigType("toml")`.
+Do not search `$HOME/.sysup-go.yaml`. File viper is separate from flag
+viper. `Load` reads the file, then `AutomaticEnv` (prefix `AppName`,
+`.`/`-` -> `_`) so env wins over the file. Flag viper does the same
+after flags are bound.
 
 ## Tests
 
 | Case | Expect |
 | --- | --- |
-| no file in temp XDG | Defaults(), err nil |
+| no file in temp XDG (Load) | Defaults(), err nil |
 | valid full toml | fields match, durations 50s and 1m |
 | bad duration (`interval = "nope"`) | decode error, path set |
 | missing explicit path | read error |
 | unknown key `[foo] bar = 1` | decode error |
-| `Dir` with `XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/sysup-go` |
+| `AppDir` with `XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/<AppName>` |
+| Generate missing/empty path | writes Defaults(), Load round-trips |
+| Generate non-empty path | generate error, file unchanged |
 
 Set `XDG_CONFIG_HOME` to a `t.TempDir()` in tests. Do not touch the
 real home dir.

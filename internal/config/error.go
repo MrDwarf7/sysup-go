@@ -1,11 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 )
 
-// errNotDir   = errors.New("not a directory")
-// var errNilViper = errors.New("nil viper")
+var (
+	errNotDir    = errors.New("not a directory")
+	errEmptyPath = errors.New("empty path")
+)
 
 type Error struct {
 	Op   string

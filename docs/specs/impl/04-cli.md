@@ -40,6 +40,7 @@ emits.
 | Flag | Cobra | Default |
 | --- | --- | --- |
 | `--config` | `String` (already exists) | "" |
+| `--generate-config` | `Bool` | false |
 | `-s, --skip` | `StringSliceP` | nil |
 | `-c, --continue` | `BoolP` | false |
 | `--no-cache` | `Bool` | false |

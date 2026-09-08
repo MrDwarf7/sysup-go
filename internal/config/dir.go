@@ -7,40 +7,33 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Takes an optional afero.Fs, creating one if nil.
-// If either is nil, defaults are attempted.
-// Returns the path to the application config directory, creating it if necessary.
-func AppDir(fsys afero.Fs) (string, error) {
+func filesystem(fsys afero.Fs) afero.Fs {
 	if fsys == nil {
-		fsys = afero.NewOsFs()
+		return afero.NewOsFs()
 	}
+	return fsys
+}
 
+// AppDir returns the application config directory, creating it if needed.
+// Path is os.UserConfigDir joined with AppName.
+func AppDir(fsys afero.Fs) (string, error) {
+	fsys = filesystem(fsys)
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", &Error{Op: "dir", Err: err}
 	}
 	dir := filepath.Join(base, AppName)
-	if dir == "" {
-		return "", &Error{Op: "dir", Path: dir, Err: os.ErrNotExist}
-	}
-
-	if exists, err := afero.DirExists(fsys, dir); err != nil {
+	if err := fsys.MkdirAll(dir, 0o755); err != nil {
 		return "", &Error{Op: "dir", Path: dir, Err: err}
-	} else if !exists {
-		if err := fsys.MkdirAll(dir, os.FileMode(0o755)); err != nil {
-			return "", &Error{Op: "dir", Path: dir, Err: err}
-		}
 	}
 	return dir, nil
 }
 
-// Calls AppDir first so the call is idempotent with respect to
-// directory creation. The returned path is what viper reports via
-// ConfigFileUsed() after a successful ReadInConfig.
+// AppConfig returns AppDir joined with ConfigFileName.
 func AppConfig(fsys afero.Fs) (string, error) {
 	dir, err := AppDir(fsys)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, ConfigName+"."+ConfigType), nil
+	return filepath.Join(dir, ConfigFileName), nil
 }

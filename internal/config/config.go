@@ -4,9 +4,9 @@ package config
 import "time"
 
 const (
-	AppName    = "sysup"
-	ConfigName = "config"
-	ConfigType = "toml"
+	AppName    string = "sysup"
+	ConfigName string = "config"
+	ConfigType string = "toml"
 )
 
 const ConfigFileName = ConfigName + "." + ConfigType
