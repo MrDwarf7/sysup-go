@@ -120,7 +120,8 @@ func loadFile(fsys afero.Fs, path string) ([]Spec, error) {
 }
 
 func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
-	matches, err := afero.Glob(fsys, dir+"/*"+filepath.Ext(FileName))
+	pattern := filepath.ToSlash(filepath.Join(dir, "*"+filepath.Ext(FileName)))
+	matches, err := afero.Glob(fsys, pattern)
 	if err != nil {
 		return nil, &Error{Op: "discover", Path: dir, Err: err}
 	}
