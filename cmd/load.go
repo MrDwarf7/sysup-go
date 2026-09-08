@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -13,11 +12,13 @@ import (
 )
 
 func loadSpecs() ([]program.Spec, error) {
-	dir, err := config.EnsureAppDir(afero.NewOsFs())
+	fsys := afero.NewOsFs()
+	dir, err := config.AppDir(fsys)
 	if err != nil {
 		return nil, err
 	}
-	specs, err := program.Load(os.DirFS(dir))
+
+	specs, err := program.Load(afero.NewBasePathFs(fsys, dir))
 	if err != nil {
 		return nil, err
 	}

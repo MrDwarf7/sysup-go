@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -49,7 +51,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   config.AppName,
 	Short: "System update orchestrator",
-	Long: `Runs user-defined programs from $XDG_CONFIG_HOME/` + config.AppName +
+	Long: `Runs user-defined programs from ` + filepath.Join("$XDG_CONFIG_HOME", config.AppName) +
 		` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
 
 -s / --skip drops programs by name or alias.
@@ -67,13 +69,23 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/"+config.AppName+"/"+config.ConfigFileName+")")
-	pf.StringSliceVarP(&skip, "skip", "s", nil, "skip programs by name or alias")
-	pf.BoolVarP(&continueOnErr, "continue", "c", false, "continue after program errors")
-	pf.BoolVar(&noCache, "no-cache", false, "skip end-of-run cache sweep")
-	pf.BoolVarP(&doShutdown, "shutdown", "d", false, "shut down after a clean run")
-	pf.BoolVar(&forceShutdown, "force-shutdown", false, "shut down even if programs failed")
-	pf.StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
+
+	// "Config file (default is $XDG_CONFIG_HOME/"+config.AppName+"/"+config.ConfigFileName+")"
+
+	sb := strings.Builder{}
+	sb.WriteString("Config file (default ")
+	sb.WriteString(
+		filepath.Join("$XDG_CONFIG_HOME", config.AppName, config.ConfigFileName),
+	)
+	sb.WriteString(")")
+
+	pf.StringVar(&cfgFile, "config", "", sb.String())
+	pf.StringSliceVarP(&skip, "skip", "s", nil, "Skip programs by name or alias")
+	pf.BoolVarP(&continueOnErr, "continue", "c", false, "Continue after program errors")
+	pf.BoolVar(&noCache, "no-cache", false, "Skip end-of-run cache sweep")
+	pf.BoolVarP(&doShutdown, "shutdown", "d", false, "Shut down after a clean run")
+	pf.BoolVar(&forceShutdown, "force-shutdown", false, "Shut down even if programs failed")
+	pf.StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 
 	cobra.CheckErr(viper.BindPFlags(pf))
 }
@@ -90,7 +102,7 @@ func initConfig() {
 		}
 		viper.SetConfigFile(cfgFile)
 	} else {
-		dir, err := config.EnsureAppDir(fsys)
+		dir, err := config.AppDir(fsys)
 		cobra.CheckErr(err)
 		viper.AddConfigPath(dir)
 		viper.SetConfigType(config.ConfigType)
