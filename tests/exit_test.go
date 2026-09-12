@@ -19,9 +19,10 @@ func TestExitCode(t *testing.T) {
 	}{
 		{name: "nil", err: nil, want: 0},
 		{name: "unknown skip", err: &program.SkipError{Token: "nope"}, want: 3},
-		{name: "unknown flag", err: errors.New("unknown flag: --bogus"), want: 2},
+		{name: "unknown flag", err: &cmd.FlagError{Err: errors.New("unknown flag: --bogus")}, want: 2},
 		{name: "other", err: errors.New("config: read missing"), want: 1},
 		{name: "step failure", err: &runner.StepError{Name: "aur", Err: errors.New("exit 1")}, want: 5},
+		{name: "continue failures", err: &runner.ContinueError{Steps: []runner.StepError{{Name: "aur", Err: errors.New("exit 1")}}}, want: 5},
 		{name: "mise up", err: &mise.Error{Op: "up", Err: errors.New("exit 1")}, want: 5},
 	}
 	for _, tc := range tests {

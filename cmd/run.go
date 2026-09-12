@@ -47,7 +47,7 @@ func (a *app) runPlan(cmd *cobra.Command, _ []string) error {
 			Env:      childEnv,
 		})
 	}
-	planErr := runner.RunAll(ctx, log, steps)
+	planErr := runner.RunAll(ctx, log, steps, a.continueOnErr)
 	restErr := st.RestoreProcessPath()
 	if planErr != nil {
 		return planErr

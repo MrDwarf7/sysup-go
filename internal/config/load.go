@@ -9,7 +9,6 @@ import (
 
 func decodeOpts(strict bool) viper.DecoderConfigOption {
 	return func(dc *mapstructure.DecoderConfig) {
-		dc.ZeroFields = false
 		dc.DecodeHook = mapstructure.StringToTimeDurationHookFunc()
 		dc.ErrorUnused = strict
 	}
@@ -17,9 +16,6 @@ func decodeOpts(strict bool) viper.DecoderConfigOption {
 
 func unmarshal(v *viper.Viper, strict bool) (Config, error) {
 	cfg := Defaults()
-	if v == nil {
-		return cfg, nil
-	}
 	if err := v.Unmarshal(&cfg, decodeOpts(strict)); err != nil {
 		return Config{}, &Error{Op: "decode", Path: v.ConfigFileUsed(), Err: err}
 	}
@@ -35,9 +31,6 @@ func UnmarshalStrict(v *viper.Viper) (Config, error) {
 }
 
 func Load(v *viper.Viper) (Config, error) {
-	if v == nil {
-		return Defaults(), nil
-	}
 	err := v.ReadInConfig()
 	v.AutomaticEnv()
 	if err != nil {

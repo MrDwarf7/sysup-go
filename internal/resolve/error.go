@@ -6,15 +6,6 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	if e.Op == "" {
-		if e.Err != nil {
-			return e.Err.Error()
-		}
-		return "resolve error"
-	}
-	if e.Err == nil {
-		return e.Op
-	}
 	return e.Op + ": " + e.Err.Error()
 }
 

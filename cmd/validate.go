@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"sysup-go/internal/config"
 	"sysup-go/internal/resolve"
 )
 
@@ -30,11 +29,7 @@ func (a *app) validateCmd() *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			label := a.origin.Kind.String()
-			if a.origin.Kind == config.KindFile {
-				label = a.origin.Path
-			}
-			if _, err := fmt.Fprintf(out, "config:  %s\n", label); err != nil {
+			if _, err := fmt.Fprintf(out, "config:  %s\n", a.origin); err != nil {
 				return err
 			}
 			if _, err := fmt.Fprintf(out, "pkg_manager: %s\n", pkgPath); err != nil {
