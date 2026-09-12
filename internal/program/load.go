@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
+	"path"
 	"slices"
 	"strings"
 
@@ -18,52 +18,23 @@ type fileDoc struct {
 	Program []Spec `toml:"program"`
 }
 
-type registry uint8
-
-const (
-	registryNone registry = iota
-	registryFile
-	registryDir
-)
-
 func Load(fsys afero.Fs) ([]Spec, error) {
-	filePath, dirPath := FileName, DirName
-	fileInfo, fileErr := fsys.Stat(filePath)
-	dirInfo, dirErr := fsys.Stat(dirPath)
-
-	kind, classErr := classify(fileInfo, fileErr, dirInfo, dirErr)
-	if classErr != nil {
-		path := filePath
-		if fileErr == nil || errors.Is(fileErr, fs.ErrNotExist) {
-			path = dirPath
-		}
-		return nil, &Error{Op: "read", Path: path, Err: classErr}
-	}
-
-	switch kind {
-	case registryFile:
-		return loadFile(fsys, filePath)
-	case registryDir:
-		return loadDir(fsys, dirPath)
-	default:
-		return nil, &Error{Op: "discover", Path: filePath, Err: errNothingToRun}
-	}
-}
-
-func classify(file fs.FileInfo, fileErr error, dir fs.FileInfo, dirErr error) (registry, error) {
-	if fileErr == nil && !file.IsDir() {
-		return registryFile, nil
-	}
-	if dirErr == nil && dir.IsDir() {
-		return registryDir, nil
+	fileInfo, fileErr := fsys.Stat(FileName)
+	if fileErr == nil && !fileInfo.IsDir() {
+		return loadFile(fsys, FileName)
 	}
 	if fileErr != nil && !errors.Is(fileErr, fs.ErrNotExist) {
-		return registryNone, fileErr
+		return nil, &Error{Op: "read", Path: FileName, Err: fileErr}
+	}
+
+	dirInfo, dirErr := fsys.Stat(DirName)
+	if dirErr == nil && dirInfo.IsDir() {
+		return loadDir(fsys, DirName)
 	}
 	if dirErr != nil && !errors.Is(dirErr, fs.ErrNotExist) {
-		return registryNone, dirErr
+		return nil, &Error{Op: "read", Path: DirName, Err: dirErr}
 	}
-	return registryNone, nil
+	return nil, &Error{Op: "discover", Path: FileName, Err: errNothingToRun}
 }
 
 // Filter drops specs whose Name or Alias is in skip. Unknown tokens
@@ -136,19 +107,17 @@ func childOfDropped(name string, dropped map[string]struct{}) bool {
 	return false
 }
 
-func loadFile(fsys afero.Fs, path string) ([]Spec, error) {
+func loadFile(fsys afero.Fs, src string) ([]Spec, error) {
 	var doc fileDoc
-	if err := decode(fsys, path, &doc); err != nil {
+	if err := decode(fsys, src, &doc); err != nil {
 		return nil, err
 	}
 	if len(doc.Program) == 0 {
-		return nil, &Error{Op: "discover", Path: path, Err: errNothingToRun}
+		return nil, &Error{Op: "discover", Path: src, Err: errNothingToRun}
 	}
 	for i := range doc.Program {
-		doc.Program[i].Source = path
-	}
-	for _, s := range doc.Program {
-		if err := validate(s); err != nil {
+		doc.Program[i].Source = src
+		if err := validate(doc.Program[i]); err != nil {
 			return nil, err
 		}
 	}
@@ -159,7 +128,7 @@ func loadFile(fsys afero.Fs, path string) ([]Spec, error) {
 }
 
 func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
-	pattern := filepath.ToSlash(filepath.Join(dir, "*"+filepath.Ext(FileName)))
+	pattern := path.Join(dir, "*.toml")
 	matches, err := afero.Glob(fsys, pattern)
 	if err != nil {
 		return nil, &Error{Op: "discover", Path: dir, Err: err}
@@ -183,27 +152,27 @@ func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
 	return specs, nil
 }
 
-func loadOne(fsys afero.Fs, path string) (Spec, error) {
+func loadOne(fsys afero.Fs, src string) (Spec, error) {
 	var spec Spec
-	if err := decode(fsys, path, &spec); err != nil {
+	if err := decode(fsys, src, &spec); err != nil {
 		return Spec{}, err
 	}
-	spec.Source = path
+	spec.Source = src
 	if err := validate(spec); err != nil {
 		return Spec{}, err
 	}
 	return spec, nil
 }
 
-func decode(fsys afero.Fs, path string, v any) error {
-	f, err := fsys.Open(path)
+func decode(fsys afero.Fs, src string, v any) error {
+	f, err := fsys.Open(src)
 	if err != nil {
-		return &Error{Op: "read", Path: path, Err: err}
+		return &Error{Op: "read", Path: src, Err: err}
 	}
 	defer f.Close()
 	dec := toml.NewDecoder(f).DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		return &Error{Op: "decode", Path: path, Err: err}
+		return &Error{Op: "decode", Path: src, Err: err}
 	}
 	return nil
 }
@@ -222,6 +191,9 @@ func validate(s Spec) error {
 	}
 	if s.Retries.MaxAttempts < 0 {
 		return &Error{Op: "validate", Path: s.Source, Err: errors.New("retries.max_attempts negative")}
+	}
+	if s.Parallel {
+		return &Error{Op: "validate", Path: s.Source, Err: errors.New("parallel not implemented")}
 	}
 	return nil
 }

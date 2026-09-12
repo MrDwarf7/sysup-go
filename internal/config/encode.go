@@ -119,7 +119,6 @@ func Encode(cfg Config) ([]byte, error) {
 
 // MissingOrEmpty is true when path does not exist or is a zero-byte file.
 func MissingOrEmpty(fsys afero.Fs, path string) (bool, error) {
-	fsys = filesystem(fsys)
 	if path == "" {
 		return false, &Error{Op: "stat", Err: errEmptyPath}
 	}
@@ -138,7 +137,6 @@ func MissingOrEmpty(fsys afero.Fs, path string) (bool, error) {
 
 // Write encodes cfg and writes it to path, creating parent dirs if needed.
 func Write(fsys afero.Fs, path string, cfg Config) error {
-	fsys = filesystem(fsys)
 	if path == "" {
 		return &Error{Op: "write", Err: errEmptyPath}
 	}

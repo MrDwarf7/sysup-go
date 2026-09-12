@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 )
 
 const noconfirmConflict = "can not install conflicting packages with --noconfirm"
@@ -41,9 +43,6 @@ func (e Exec) Meta() Spec {
 func (e Exec) Run(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
-	}
-	if len(e.Spec.Command) < 1 {
-		return fmt.Errorf("command required")
 	}
 	attempts := max(e.Attempts, 1)
 	argv := append([]string{}, e.Spec.Command...)
@@ -93,6 +92,13 @@ func (e Exec) runOnce(ctx context.Context, argv []string, captured *bytes.Buffer
 		return fmt.Errorf("lookpath %s: %w", argv0, err)
 	}
 	cmd := exec.CommandContext(ctx, path, argv[1:]...)
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
+	cmd.WaitDelay = 3 * time.Second
 	if len(e.Env) > 0 {
 		cmd.Env = e.Env
 	}

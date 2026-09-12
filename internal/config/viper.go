@@ -13,7 +13,7 @@ import (
 // after ReadInConfig so env wins over the file.
 func NewViper(fsys afero.Fs, path string) *viper.Viper {
 	v := viper.New()
-	v.SetFs(filesystem(fsys))
+	v.SetFs(fsys)
 	v.SetConfigType(ConfigType)
 	if path != "" {
 		v.SetConfigFile(path)

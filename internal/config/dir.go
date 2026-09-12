@@ -7,31 +7,32 @@ import (
 	"github.com/spf13/afero"
 )
 
-func filesystem(fsys afero.Fs) afero.Fs {
-	if fsys == nil {
-		return afero.NewOsFs()
-	}
-	return fsys
-}
-
-// AppDir returns the application config directory, creating it if needed.
-// Path is os.UserConfigDir joined with AppName.
-func AppDir(fsys afero.Fs) (string, error) {
-	fsys = filesystem(fsys)
+// Dir returns the application config directory path. It does not create
+// the directory. Path is os.UserConfigDir joined with AppName.
+func Dir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", &Error{Op: "dir", Err: err}
 	}
-	dir := filepath.Join(base, AppName)
+	return filepath.Join(base, AppName), nil
+}
+
+// AppDir returns Dir, creating it if needed.
+func AppDir(fsys afero.Fs) (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
 	if err := fsys.MkdirAll(dir, 0o755); err != nil {
 		return "", &Error{Op: "dir", Path: dir, Err: err}
 	}
 	return dir, nil
 }
 
-// AppConfig returns AppDir joined with ConfigFileName.
-func AppConfig(fsys afero.Fs) (string, error) {
-	dir, err := AppDir(fsys)
+// AppConfig returns Dir joined with ConfigFileName. It does not create
+// the directory; Generate / Write create parents when they write.
+func AppConfig() (string, error) {
+	dir, err := Dir()
 	if err != nil {
 		return "", err
 	}

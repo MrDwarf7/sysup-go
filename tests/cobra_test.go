@@ -50,6 +50,32 @@ func TestRuntimeErrorOmitsUsage(t *testing.T) {
 	}
 }
 
+func TestInvalidLogLevelErrors(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	dir := expectedAppDir(t, xdg)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(dir, config.ConfigFileName)
+	if err := os.WriteFile(cfg, []byte("# sysup default config.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	root := cmd.NewRoot()
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetErr(&buf)
+	root.SetArgs([]string{"--log-level", "bogus", "list"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "log-level") {
+		t.Fatalf("error = %v, want log-level", err)
+	}
+}
+
 func TestUnknownFlagStillShowsUsage(t *testing.T) {
 	root := cmd.NewRoot()
 	var buf bytes.Buffer
