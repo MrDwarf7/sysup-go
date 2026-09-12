@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/spf13/afero"
 )
 
 var errNothingToRun = errors.New("nothing to run")
@@ -24,10 +25,10 @@ const (
 	registryDir
 )
 
-func Load(fsys fs.FS) ([]Spec, error) {
+func Load(fsys afero.Fs) ([]Spec, error) {
 	filePath, dirPath := FileName, DirName
-	fileInfo, fileErr := fs.Stat(fsys, filePath)
-	dirInfo, dirErr := fs.Stat(fsys, dirPath)
+	fileInfo, fileErr := fsys.Stat(filePath)
+	dirInfo, dirErr := fsys.Stat(dirPath)
 
 	kind, classErr := classify(fileInfo, fileErr, dirInfo, dirErr)
 	if classErr != nil {
@@ -96,7 +97,7 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	return out, nil
 }
 
-func loadFile(fsys fs.FS, path string) ([]Spec, error) {
+func loadFile(fsys afero.Fs, path string) ([]Spec, error) {
 	var doc fileDoc
 	if err := decode(fsys, path, &doc); err != nil {
 		return nil, err
@@ -118,8 +119,9 @@ func loadFile(fsys fs.FS, path string) ([]Spec, error) {
 	return doc.Program, nil
 }
 
-func loadDir(fsys fs.FS, dir string) ([]Spec, error) {
-	matches, err := fs.Glob(fsys, dir+"/*"+filepath.Ext(FileName))
+func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
+	pattern := filepath.ToSlash(filepath.Join(dir, "*"+filepath.Ext(FileName)))
+	matches, err := afero.Glob(fsys, pattern)
 	if err != nil {
 		return nil, &Error{Op: "discover", Path: dir, Err: err}
 	}
@@ -142,7 +144,7 @@ func loadDir(fsys fs.FS, dir string) ([]Spec, error) {
 	return specs, nil
 }
 
-func loadOne(fsys fs.FS, path string) (Spec, error) {
+func loadOne(fsys afero.Fs, path string) (Spec, error) {
 	var spec Spec
 	if err := decode(fsys, path, &spec); err != nil {
 		return Spec{}, err
@@ -154,7 +156,7 @@ func loadOne(fsys fs.FS, path string) (Spec, error) {
 	return spec, nil
 }
 
-func decode(fsys fs.FS, path string, v any) error {
+func decode(fsys afero.Fs, path string, v any) error {
 	f, err := fsys.Open(path)
 	if err != nil {
 		return &Error{Op: "read", Path: path, Err: err}

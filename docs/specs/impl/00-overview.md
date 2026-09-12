@@ -115,8 +115,10 @@ type Options struct {
 
 ## Defaults
 
-`config.toml` is optional. Missing file => defaults above. `--config`
-pointing at a missing file is an error.
+`config.toml` is bootstrapped. Missing or empty default file => write
+`Defaults()` to `AppConfig`, print the path, exit 0. `--config`
+pointing at a missing file is an error. `--generate-config` writes
+on demand and refuses to clobber a non-empty file.
 
 Programs are required: no `programs.toml` and no `programs/*.toml` =>
 error, nothing to run.

@@ -2,17 +2,20 @@ package tests
 
 import (
 	"errors"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
-	"testing/fstest"
+
+	"github.com/spf13/afero"
 
 	"sysup-go/internal/program"
 )
 
 func TestProgramLoadNeitherFileNorDir(t *testing.T) {
 	t.Parallel()
-	_, err := program.Load(fstest.MapFS{})
+	_, err := program.Load(afero.NewMemMapFs())
 	assertNothingToRun(t, err)
 }
 
@@ -240,6 +243,23 @@ func TestProgramFilter(t *testing.T) {
 			t.Errorf("names = %v, want [mirror]", names)
 		}
 	})
+}
+
+func TestExampleProgramsLoad(t *testing.T) {
+	t.Parallel()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "examples")
+	specs, err := program.Load(afero.NewBasePathFs(afero.NewOsFs(), root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"mirror", "mirror-stage", "mirror-backup", "mirror-swap", "pacman", "aur", "rustup", "neovim", "ya", "hermes"}
+	if got := specNames(specs); !slices.Equal(got, want) {
+		t.Errorf("names = %v, want %v", got, want)
+	}
 }
 
 func assertNothingToRun(t *testing.T, err error) {

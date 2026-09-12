@@ -5,7 +5,10 @@ import (
 	"fmt"
 )
 
-var errNotDir = errors.New("not a directory")
+var (
+	errNotDir    = errors.New("not a directory")
+	errEmptyPath = errors.New("empty path")
+)
 
 type Error struct {
 	Op   string

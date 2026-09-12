@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"sync"
 	"testing"
-	"testing/fstest"
 
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -17,6 +16,20 @@ import (
 	"sysup-go/internal/config"
 	"sysup-go/internal/program"
 )
+
+// expectedAppDir is where AppDir looks. Unix honours XDG_CONFIG_HOME
+// (unixXDG). Windows UserConfigDir is %AppData%; XDG is ignored.
+func expectedAppDir(t *testing.T, unixXDG string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		base, err := os.UserConfigDir()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Join(base, config.AppName)
+	}
+	return filepath.Join(unixXDG, config.AppName)
+}
 
 func fixturePath(t *testing.T, parts ...string) string {
 	t.Helper()
@@ -28,10 +41,13 @@ func fixturePath(t *testing.T, parts ...string) string {
 	return filepath.Join(append([]string{base}, parts...)...)
 }
 
-func fixtureMapFS(t *testing.T, parts ...string) fstest.MapFS {
+// fixtureMapFS copies testdata into a MemMapFs rooted at the fixture
+// directory. Paths stay relative (programs.toml, programs/*.toml) so
+// program.Load sees the same layout as a BasePathFs over the app dir.
+func fixtureMapFS(t *testing.T, parts ...string) afero.Fs {
 	t.Helper()
 	root := fixturePath(t, parts...)
-	out := fstest.MapFS{}
+	out := afero.NewMemMapFs()
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -45,15 +61,13 @@ func fixtureMapFS(t *testing.T, parts ...string) fstest.MapFS {
 			return nil
 		}
 		if d.IsDir() {
-			out[rel] = &fstest.MapFile{Mode: fs.ModeDir}
-			return nil
+			return out.MkdirAll(rel, 0o755)
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		out[rel] = &fstest.MapFile{Data: b}
-		return nil
+		return afero.WriteFile(out, rel, b, 0o644)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -61,13 +75,20 @@ func fixtureMapFS(t *testing.T, parts ...string) fstest.MapFS {
 	return out
 }
 
+// rootedOsFs is the afero equivalent of os.DirFS(dir): every Open/Stat/Glob
+// is relative to dir. Same wrapper loadSpecs uses around the app dir.
+func rootedOsFs(dir string) afero.Fs {
+	return afero.NewBasePathFs(afero.NewOsFs(), dir)
+}
+
 func loadProgramTree(t *testing.T, tree, backend string) ([]program.Spec, error) {
 	t.Helper()
+	root := fixturePath(t, "programs", tree)
 	switch backend {
 	case "mem":
 		return program.Load(fixtureMapFS(t, "programs", tree))
 	case "disk":
-		return program.Load(os.DirFS(fixturePath(t, "programs", tree)))
+		return program.Load(rootedOsFs(root))
 	default:
 		t.Fatalf("unknown backend %q", backend)
 		return nil, nil
@@ -90,10 +111,7 @@ func configViper(t *testing.T, fixture, backend string) (*viper.Viper, string) {
 		path := "/" + config.ConfigFileName
 		return memViper(t, map[string]string{path: string(b)}), path
 	case "disk":
-		v := viper.New()
-		v.SetConfigFile(src)
-		v.SetConfigType(config.ConfigType)
-		return v, src
+		return config.NewViper(afero.NewOsFs(), src), src
 	default:
 		t.Fatalf("unknown backend %q", backend)
 		return nil, ""
@@ -108,10 +126,7 @@ func memViper(t *testing.T, files map[string]string) *viper.Viper {
 			t.Fatal(err)
 		}
 	}
-	v := viper.New()
-	v.SetFs(fsys)
-	v.SetConfigType(config.ConfigType)
-	return v
+	return config.NewViper(fsys, "")
 }
 
 func requireConfigOp(t *testing.T, err error, op string) {

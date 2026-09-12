@@ -149,6 +149,38 @@ user's problem; docs say use tens.
 
 Single-file `programs.toml` uses `[[program]]` array order.
 
+Worked example: the Fish `sysup/registry.fish` order, as argv files
+under `examples/programs/`. Copy that tree to
+`$XDG_CONFIG_HOME/sysup/programs/`. Fish `cache`, `mise`, and
+`shutdown` are wraps (`[cache]`, `[mise] wrap`, `-d`), not programs.
+
+| File | alias | command[0..] | optional |
+| --- | --- | --- | --- |
+| `10-mirror.toml` | m | `rate-mirrors --save /tmp/sysup-mirrorlist ... arch` | no |
+| `15-mirror-stage.toml` | mt | `sudo install ... /tmp/sysup-mirrorlist /etc/pacman.d/mirrorlist.new` | no |
+| `16-mirror-backup.toml` | mb | `sudo cp -a /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist-backup` | no |
+| `17-mirror-swap.toml` | mw | `sudo mv -f /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist` | no |
+| `20-pacman.toml` | p | `sudo pacman -Syyu --needed --noconfirm` | no |
+| `30-aur.toml` | a | `paru -Syu --devel --needed --noconfirm` | no |
+| `40-rustup.toml` | r | `rustup update` | yes |
+| `50-neovim.toml` | n | `nvim --headless -c 'Lazy! sync' -c qa` | no |
+| `60-ya.toml` | y | `ya pkg upgrade --discard` | yes |
+| `70-hermes.toml` | h | `hermes update -y` | no |
+
+Fish `aur` ran `$PKG_MANAGER`. v1 recipes are literals; `paru` is the
+resolve fallback. Swap the argv0 if the machine uses yay.
+
+Fish `mirror` ran `rate-mirrors` as the user (it refuses euid 0),
+then `sudo mv` into `/etc`. `mv` from `/tmp` to `/etc` is usually
+EXDEV (copy), which can leave a truncated live file. Split:
+
+1. Generate to `/tmp` as the user.
+2. `install` that complete file to `mirrorlist.new` on the dest fs.
+3. `cp -a` the live list to `mirrorlist-backup` (do not `mv` it away).
+4. `mv -f mirrorlist.new mirrorlist` -- same-dir `rename(2)`, atomic.
+
+Tunables match Fish (AUS, arch, 90000 / 15).
+
 ```toml
 # programs/20-pacman.toml
 name = "pacman"

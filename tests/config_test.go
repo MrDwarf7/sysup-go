@@ -2,7 +2,10 @@ package tests
 
 import (
 	"errors"
+	"io/fs"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,52 +99,91 @@ func TestConfigLoad(t *testing.T) {
 	})
 }
 
-func TestConfigAppDirUsesFileDir(t *testing.T) {
-	t.Parallel()
-	path := fixturePath(t, "config", "mise-wrap.toml")
-	v := viper.New()
-	v.SetConfigFile(path)
-	if err := v.ReadInConfig(); err != nil {
-		t.Fatal(err)
-	}
-	got, err := config.AppDir(v, afero.NewOsFs())
+func TestConfigAppDirFromXDG(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	fsys := afero.NewOsFs()
+	want := expectedAppDir(t, xdg)
+
+	got, err := config.AppDir(fsys)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := fixturePath(t, "config")
+	if got != want {
+		t.Errorf("AppDir = %q, want %q", got, want)
+	}
+	ok, err := afero.DirExists(fsys, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Errorf("AppDir did not create %q", want)
+	}
+}
+
+func TestConfigAppDirNilFs(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	want := expectedAppDir(t, xdg)
+
+	got, err := config.AppDir(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != want {
 		t.Errorf("AppDir = %q, want %q", got, want)
 	}
 }
 
-func TestConfigAppDirMissing(t *testing.T) {
+func TestConfigAppDirCreatesMissing(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg-missing")
-	_, err := config.AppDir(nil, afero.NewMemMapFs())
-	if err == nil {
-		t.Fatal("expected error")
+	fsys := afero.NewMemMapFs()
+	want := expectedAppDir(t, "/xdg-missing")
+
+	got, err := config.AppDir(fsys)
+	if err != nil {
+		t.Fatalf("AppDir error = %v", err)
 	}
-	var ce *config.Error
-	if !errors.As(err, &ce) {
-		t.Fatalf("got %T %v, want *config.Error", err, err)
+	if got != want {
+		t.Errorf("AppDir = %q, want %q", got, want)
 	}
-	if ce.Op != "dir" {
-		t.Errorf("Op = %q, want dir", ce.Op)
+	ok, err := afero.DirExists(fsys, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Errorf("AppDir did not create %q", want)
 	}
 }
 
 func TestConfigAppDirExists(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 	fsys := afero.NewMemMapFs()
-	want := "/xdg/" + config.AppName
+	want := expectedAppDir(t, "/xdg")
 	if err := fsys.MkdirAll(want, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := config.AppDir(nil, fsys)
+
+	got, err := config.AppDir(fsys)
+	if err != nil {
+		t.Fatalf("AppDir error = %v", err)
+	}
+	if got != want {
+		t.Errorf("AppDir = %q, want %q", got, want)
+	}
+}
+
+func TestConfigAppConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/xdg")
+	fsys := afero.NewMemMapFs()
+	want := filepath.Join(expectedAppDir(t, "/xdg"), config.ConfigFileName)
+
+	got, err := config.AppConfig(fsys)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Errorf("AppDir = %q, want %q", got, want)
+		t.Errorf("AppConfig = %q, want %q", got, want)
 	}
 }
 
@@ -174,5 +216,116 @@ func TestConfigDefaults(t *testing.T) {
 	}
 	if !c.Mise.Wrap || !c.Cache.Enabled || c.Shutdown.Force || c.Shutdown.Wait != time.Minute {
 		t.Errorf("defaults = %+v", c)
+	}
+}
+
+func TestConfigGenerateRoundTrip(t *testing.T) {
+	t.Parallel()
+	fsys := afero.NewMemMapFs()
+	path := "/xdg/sysup/" + config.ConfigFileName
+	if err := config.Generate(fsys, path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := config.Load(config.NewViper(fsys, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := config.Defaults()
+	want.Cache.IncludeDirs = []string{}
+	want.Cache.ExcludeDirs = []string{}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Load(Generate) = %+v, want %+v", got, want)
+	}
+}
+
+func TestConfigGenerateEmptyFile(t *testing.T) {
+	t.Parallel()
+	fsys := afero.NewMemMapFs()
+	path := "/empty/" + config.ConfigFileName
+	if err := afero.WriteFile(fsys, path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Generate(fsys, path); err != nil {
+		t.Fatal(err)
+	}
+	info, err := fsys.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("Generate left empty file")
+	}
+}
+
+func TestConfigGenerateExists(t *testing.T) {
+	t.Parallel()
+	fsys := afero.NewMemMapFs()
+	path := "/exists/" + config.ConfigFileName
+	if err := afero.WriteFile(fsys, path, []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := config.Generate(fsys, path)
+	requireConfigOp(t, err, "generate")
+	if !errors.Is(err, fs.ErrExist) {
+		t.Errorf("Unwrap = %v, want fs.ErrExist", err)
+	}
+	got, err := afero.ReadFile(fsys, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "keep\n" {
+		t.Errorf("clobbered file: %q", got)
+	}
+}
+
+func TestConfigMissingOrEmpty(t *testing.T) {
+	t.Parallel()
+	fsys := afero.NewMemMapFs()
+	path := "/x/" + config.ConfigFileName
+
+	ok, err := config.MissingOrEmpty(fsys, path)
+	if err != nil || !ok {
+		t.Fatalf("missing: ok=%v err=%v, want true nil", ok, err)
+	}
+
+	if writeErr := afero.WriteFile(fsys, path, nil, 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	ok, err = config.MissingOrEmpty(fsys, path)
+	if err != nil || !ok {
+		t.Fatalf("empty: ok=%v err=%v, want true nil", ok, err)
+	}
+
+	if writeErr := afero.WriteFile(fsys, path, []byte("x"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	ok, err = config.MissingOrEmpty(fsys, path)
+	if err != nil || ok {
+		t.Fatalf("non-empty: ok=%v err=%v, want false nil", ok, err)
+	}
+
+	dir := "/x/dir"
+	if mkdirErr := fsys.MkdirAll(dir, 0o755); mkdirErr != nil {
+		t.Fatal(mkdirErr)
+	}
+	_, err = config.MissingOrEmpty(fsys, dir)
+	requireConfigOp(t, err, "stat")
+}
+
+func TestConfigEncodeDurations(t *testing.T) {
+	t.Parallel()
+	b, err := config.Encode(config.Defaults())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "50s") {
+		t.Errorf("missing 50s interval:\n%s", s)
+	}
+	if !strings.Contains(s, "1m") {
+		t.Errorf("missing 1m wait:\n%s", s)
+	}
+	if strings.Contains(s, "1m0s") {
+		t.Errorf("uncompact wait:\n%s", s)
 	}
 }

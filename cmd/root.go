@@ -22,10 +22,11 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -35,95 +36,151 @@ import (
 	"sysup-go/internal/program"
 )
 
-var cfgFile string
+// app is one CLI invocation. Flags, the file-backed Config, and the
+// filesystem live here instead of package globals filled by init().
+type app struct {
+	fs     afero.Fs
+	cfg    config.Config
+	origin config.Origin
 
-var (
-	skip          []string
-	continueOnErr bool
-	noCache       bool
-	doShutdown    bool
-	forceShutdown bool
-	logLevel      string
-)
-
-var rootCmd = &cobra.Command{
-	Use:   config.AppName,
-	Short: "System update orchestrator",
-	Long: `Runs user-defined programs from $XDG_CONFIG_HOME/` + config.AppName +
-		` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
-
--s / --skip drops programs by name or alias.
--c / --continue accumulates program errors instead of stopping.`,
+	cfgFile        string
+	skip           []string
+	continueOnErr  bool
+	noCache        bool
+	doShutdown     bool
+	forceShutdown  bool
+	logLevel       string
+	generateConfig bool
 }
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := NewRoot().Execute(); err != nil {
 		os.Exit(ExitCode(err))
 	}
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
+// NewRoot builds the command tree. Call this instead of relying on init().
+func NewRoot() *cobra.Command {
+	a := &app{}
+	root := &cobra.Command{
+		Use:   config.AppName,
+		Short: "System update orchestrator",
+		Long: `Runs user-defined programs from ` + filepath.Join("$XDG_CONFIG_HOME", config.AppName) +
+			` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
 
-	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/"+config.AppName+"/"+config.ConfigFileName+")")
-	pf.StringSliceVarP(&skip, "skip", "s", nil, "skip programs by name or alias")
-	pf.BoolVarP(&continueOnErr, "continue", "c", false, "continue after program errors")
-	pf.BoolVar(&noCache, "no-cache", false, "skip end-of-run cache sweep")
-	pf.BoolVarP(&doShutdown, "shutdown", "d", false, "shut down after a clean run")
-	pf.BoolVar(&forceShutdown, "force-shutdown", false, "shut down even if programs failed")
-	pf.StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
-
-	cobra.CheckErr(viper.BindPFlags(pf))
+-s / --skip drops programs by name or alias.
+-c / --continue accumulates program errors instead of stopping.`,
+		PersistentPreRunE: a.setup,
+		RunE:              a.runPlan,
+	}
+	a.bindFlags(root)
+	cobra.CheckErr(viper.BindPFlags(root.PersistentFlags()))
+	root.AddCommand(a.listCmd(), a.validateCmd())
+	return root
 }
 
-func initConfig() {
-	fsys := afero.NewOsFs()
-	viper.SetFs(fsys)
+func (a *app) bindFlags(root *cobra.Command) {
+	pf := root.PersistentFlags()
+	configHelp := "Config file (default " +
+		filepath.Join("$XDG_CONFIG_HOME", config.AppName, config.ConfigFileName) + ")"
 
-	if cfgFile != "" {
-		info, err := fsys.Stat(cfgFile)
-		cobra.CheckErr(err)
-		if info.IsDir() {
-			cobra.CheckErr(fmt.Errorf("config path is a directory: %s", cfgFile))
+	pf.StringVar(&a.cfgFile, "config", "", configHelp)
+	pf.BoolVar(&a.generateConfig, "generate-config", false, "Write default "+config.ConfigFileName+" and exit")
+	pf.StringSliceVarP(&a.skip, "skip", "s", nil, "Skip programs by name or alias")
+	pf.BoolVarP(&a.continueOnErr, "continue", "c", false, "Continue after program errors")
+	pf.BoolVar(&a.noCache, "no-cache", false, "Skip end-of-run cache sweep")
+	pf.BoolVarP(&a.doShutdown, "shutdown", "d", false, "Shut down after a clean run")
+	pf.BoolVar(&a.forceShutdown, "force-shutdown", false, "Shut down even if programs failed")
+	pf.StringVar(&a.logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+}
+
+func (a *app) configPath() (string, error) {
+	if a.cfgFile != "" {
+		return a.cfgFile, nil
+	}
+	return config.AppConfig(a.fs)
+}
+
+// skipSetup is true for cobra's own machinery. Those commands must not
+// load or generate config: stdout is the completion script / choice list
+// (see cobra "Generating shell completions").
+//
+// Names that fire this:
+//   - help
+//   - completion and its children (bash, zsh, fish, powershell)
+//   - __complete / __completeNoDesc (hidden; the shell calls these on tab)
+func skipSetup(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		switch c.Name() {
+		case "help", "completion", cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
+			return true
 		}
-		viper.SetConfigFile(cfgFile)
-	} else {
-		dir, err := config.EnsureAppDir(fsys)
-		cobra.CheckErr(err)
-		viper.AddConfigPath(dir)
-		viper.SetConfigType(config.ConfigType)
-		viper.SetConfigName(config.ConfigName)
 	}
-
-	viper.AutomaticEnv()
-
-	err := viper.ReadInConfig()
-	if err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-		fileViper := viper.New()
-		fileViper.SetFs(fsys)
-		fileViper.SetConfigFile(viper.ConfigFileUsed())
-		fileViper.SetConfigType(config.ConfigType)
-		cobra.CheckErr(fileViper.ReadInConfig())
-		_, strictErr := config.UnmarshalStrict(fileViper)
-		cobra.CheckErr(strictErr)
-		return
-	}
-	if cfgFile != "" {
-		cobra.CheckErr(err)
-		return
-	}
-	if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); ok {
-		return
-	}
-	cobra.CheckErr(err)
+	return false
 }
 
-func newLogger() *slog.Logger {
+func (a *app) setup(cmd *cobra.Command, _ []string) error {
+	// Flag parse errors happen before PersistentPreRun, so they still
+	// print usage. RunE failures (step exit 1, nothing to run) should not.
+	cmd.SilenceUsage = true
+	if skipSetup(cmd) {
+		return nil
+	}
+
+	a.fs = afero.NewOsFs()
+	viper.SetFs(a.fs)
+
+	path, err := a.configPath()
+	if err != nil {
+		return err
+	}
+
+	if a.generateConfig {
+		return a.writeDefaultsAndExit(cmd, path)
+	}
+
+	if a.cfgFile == "" {
+		empty, emptyErr := config.MissingOrEmpty(a.fs, path)
+		if emptyErr != nil {
+			return emptyErr
+		}
+		if empty {
+			return a.writeDefaultsAndExit(cmd, path)
+		}
+	}
+
+	v := config.NewViper(a.fs, path)
+	a.cfg, err = config.Load(v)
+	if err != nil {
+		return err
+	}
+	a.origin = config.OriginFrom(v)
+
+	// Env last: viper.find is override > flag > env > file > default.
+	// AutomaticEnv is a lookup switch, not a snapshot; it must be on
+	// before the first Get. Replacer makes log-level -> LOG_LEVEL.
+	viper.SetEnvPrefix(config.AppName)
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	viper.AutomaticEnv()
+	a.skip = viper.GetStringSlice("skip")
+	a.logLevel = viper.GetString("log-level")
+	return nil
+}
+
+func (a *app) writeDefaultsAndExit(cmd *cobra.Command, path string) error {
+	if err := config.Generate(a.fs, path); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "wrote default config to %s\n", path); err != nil {
+		return err
+	}
+	os.Exit(0)
+	return nil
+}
+
+func (a *app) logger() *slog.Logger {
 	var lvl slog.Level
-	if err := lvl.UnmarshalText([]byte(viper.GetString("log-level"))); err != nil {
+	if err := lvl.UnmarshalText([]byte(a.logLevel)); err != nil {
 		lvl = slog.LevelInfo
 	}
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))

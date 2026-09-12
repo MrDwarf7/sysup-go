@@ -1,0 +1,6 @@
+# Port of fish sysup_aur. Fish used $PKG_MANAGER; v1 recipes are literals.
+# Resolve still honours PKG_MANAGER for validate. Swap paru for yay if needed.
+name        = "aur"
+alias       = "a"
+description = "Update AUR packages"
+command     = [ "paru", "-Syu", "--devel", "--needed", "--noconfirm" ]

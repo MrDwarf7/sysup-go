@@ -26,54 +26,54 @@ expr_env := "GOGC=off GODEBUG=clobberfree=1,invalidptr=1,gccheckmark=1,efence=1,
 default:
     @just --list
 
+_ensure-bindir:
+    mkdir -p {{ bindir }}
+
 # build debug binary (b) -> bin/sysup-dbg  (race + no-opt)
 alias b := build
-build:
-    mkdir -p {{bindir}}
-    {{race_env}} go build -race -gcflags "{{gcflags_debug}}" -o {{bin_dbg}} .
+build: _ensure-bindir
+    {{ race_env }} go build -race -gcflags "{{ gcflags_debug }}" -o {{ bin_dbg }} .
 
 # build optimized release binary (br) -> bin/sysup
 # CGO off, stripped, trimpath, no VCS stamp, readonly modules, no race
 alias br := build-release
-build-release:
-    mkdir -p {{bindir}}
-    CGO_ENABLED=0 go build -mod=readonly -ldflags "{{ldflags_release}}" -trimpath -buildvcs=false -o {{bin_rel}} .
+build-release: _ensure-bindir
+    CGO_ENABLED=0 go build -mod=readonly -ldflags "{{ ldflags_release }}" -trimpath -buildvcs=false -o {{ bin_rel }} .
 
 # build experimental binary (be) -> bin/sysup-expr
 # compile-time checkptr=2; run with `just re` for GOGC=off + clobber/efence.
 # Do not add GOEXPERIMENT=cgocheck2 here: it panics at startup with efence
 # ("unpinned Go pointer stored into non-Go memory" in runtime.parsegodebug).
 alias be := build-expr
-build-expr:
-    mkdir -p {{bindir}}
-    go build -gcflags "{{gcflags_expr}}" -o {{bin_expr}} .
+build-expr: _ensure-bindir
+    go build -gcflags "{{ gcflags_expr }}" -o {{ bin_expr }} .
 
 # build debug + release and print size delta (ba)
 alias ba := build-all
 build-all: build build-release
-    @dbg=$(stat -c%s {{bin_dbg}}); rel=$(stat -c%s {{bin_rel}}); \
-    printf 'debug    %10d  %s\n' "$dbg" "{{bin_dbg}}"; \
-    printf 'release  %10d  %s\n' "$rel" "{{bin_rel}}"; \
+    @dbg=$(stat -c%s {{ bin_dbg }}); rel=$(stat -c%s {{ bin_rel }}); \
+    printf 'debug    %10d  %s\n' "$dbg" "{{ bin_dbg }}"; \
+    printf 'release  %10d  %s\n' "$rel" "{{ bin_rel }}"; \
     printf 'saved    %10d\n' "$((dbg - rel))"; \
-    if [ -f {{bin_expr}} ]; then \
-      printf 'expr     %10d  %s\n' "$(stat -c%s {{bin_expr}})" "{{bin_expr}}"; \
+    if [ -f {{ bin_expr }} ]; then \
+      printf 'expr     %10d  %s\n' "$(stat -c%s {{ bin_expr }})" "{{ bin_expr }}"; \
     fi
 
 # static analysis (c): golangci-lint default:all
 alias c := check
 check:
-    go tool golangci-lint run {{pkg}}
+    go tool golangci-lint run {{ pkg }}
 
 # remove build artifacts (cl)
 alias cl := clean
 clean:
-    rm -rf {{bindir}}
+    rm -rf {{ bindir }}
     go clean
 
 # format all Go sources (f)
 alias f := format
 format: taplo-format
-    go fmt {{pkg}}
+    go fmt {{ pkg }}
 
 # format TOML files via taplo
 taplo-format:
@@ -91,29 +91,28 @@ vuln:
 # race, shuffle, full vet, halt on first race. always debug-class flags.
 alias t := test
 test *args:
-    {{race_env}} go test -race -count=1 -shuffle=on -timeout 2m -vet=all {{testpkg}} {{args}}
+    {{ race_env }} go test -race -count=1 -shuffle=on -timeout 2m -vet=all {{ testpkg }} {{ args }}
 
 # coverage (atomic required with -race); profile stays under bin/
-cover:
-    mkdir -p {{bindir}}
-    {{race_env}} go test -race -count=1 -shuffle=on -timeout 2m -vet=all -covermode=atomic -coverpkg={{pkg}} -coverprofile={{coverprofile}} {{testpkg}}
-    go tool cover -func={{coverprofile}}
+cover: _ensure-bindir
+    {{ race_env }} go test -race -count=1 -shuffle=on -timeout 2m -vet=all -covermode=atomic -coverpkg={{ pkg }} -coverprofile={{ coverprofile }} {{ testpkg }}
+    go tool cover -func={{ coverprofile }}
 
 # debug-build then run: `just r list`
 alias r := run
 run *args: build
-    {{race_env}} ./{{bin_dbg}} {{args}}
+    {{ race_env }} ./{{ bin_dbg }} {{ args }}
 
 # release-build then run: `just rr list`
 alias rr := run-release
 run-release *args: build-release
-    ./{{bin_rel}} {{args}}
+    ./{{ bin_rel }} {{ args }}
 
 # experimental-build then run: `just re list`
 # GC off, freed memory clobbered, unique pages (efence), extra pointer checks.
 alias re := run-expr
 run-expr *args: build-expr
-    {{expr_env}} ./{{bin_expr}} {{args}}
+    {{ expr_env }} ./{{ bin_expr }} {{ args }}
 
 # full pipeline (a): format -> check -> test -> debug+release
 alias a := all
