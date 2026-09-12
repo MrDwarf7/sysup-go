@@ -99,3 +99,56 @@ func TestExecCtxAlreadyDone(t *testing.T) {
 		t.Fatalf("Run() = %v, want context.Canceled", err)
 	}
 }
+
+func TestExecRetryUseAsk(t *testing.T) {
+	t.Parallel()
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh not on PATH")
+	}
+	script := `for a in "$@"; do [ "$a" = --useask ] && exit 0; done
+echo 'can not install conflicting packages with --noconfirm' >&2
+exit 1`
+	e := program.Exec{
+		Spec: program.Spec{
+			Name:    "aur",
+			Command: []string{"sh", "-c", script, "sh"},
+		},
+		LookPath: func(string) (string, error) { return sh, nil },
+		Stdout:   io.Discard,
+		Stderr:   io.Discard,
+		Attempts: 2,
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatalf("retry with --useask = %v, want nil", err)
+	}
+}
+
+func TestExecNoRetryWithoutAlways(t *testing.T) {
+	t.Parallel()
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh not on PATH")
+	}
+	var n int
+	e := program.Exec{
+		Spec: program.Spec{
+			Name:    "aur",
+			Command: []string{"sh", "-c", "exit 1"},
+		},
+		LookPath: func(string) (string, error) {
+			n++
+			return sh, nil
+		},
+		Stdout:   io.Discard,
+		Stderr:   io.Discard,
+		Attempts: 3,
+		Always:   false,
+	}
+	if err := e.Run(context.Background()); err == nil {
+		t.Fatal("want error")
+	}
+	if n != 1 {
+		t.Fatalf("runs = %d, want 1 (non-retryable)", n)
+	}
+}

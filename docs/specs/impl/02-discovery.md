@@ -80,6 +80,8 @@ Empty `programs/` directory (no `*.toml`): same error.
   paths. Empty alias is "no alias", not a token.
 - `command` required, len >= 1, every element non-empty.
 - `optional` and `parallel` default false.
+- `[retries] always` / `max_attempts` optional. 0 max is unset.
+  Global `[retries].max_attempts` > 0 is a hard cap on the recipe.
 - No `kind` field. Presence of `kind` is an unknown-field error.
 
 Lexical sort: `10-mirror.toml` < `20-pacman.toml`. `9-x.toml` >
@@ -93,6 +95,12 @@ ASCII puts them.
 Unknown token => `SkipError{Token}` (cmd maps to exit 3 in 04).
 Matching is exact string, case-sensitive. Duplicates in `--skip` are
 fine (idempotent). Filter does not reorder.
+
+Quirk: skipping a name also drops specs named `name-*`. Skipping
+`mirror` (or alias `m`) drops `mirror-stage` and friends so a split
+recipe is not left half-run. Skipping only the child does not skip
+the parent. The cut is `parent + "-"`; `mirrors` is not a child of
+`mirror`.
 
 ## Tests
 

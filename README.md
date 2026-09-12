@@ -9,6 +9,7 @@ sysup-go validate         # check config without running
 sysup-go --generate-config  # write default config.toml and exit
 sysup-go -c               # continue on errors
 sysup-go -s pacman        # skip a program by name or alias
+sysup-go -s m             # skip mirror AND mirror-* follow-ups
 ```
 
 ## What It Does
@@ -35,6 +36,7 @@ interval = "50s"
 
 [mise]
 wrap = true
+strip_bins_from_path = true
 
 [cache]
 enabled = true
@@ -51,6 +53,50 @@ alias = "p"
 description = "Update official repository packages"
 command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 ```
+
+## Retries
+
+`[retries]` in `config.toml` is the global policy. The same table on a
+program file applies to that recipe only. `max_attempts` is total runs
+including the first (0 = unset). A positive **global** max always wins:
+recipe 10 + global 3 => 3 tries.
+
+`always = false` retries only classified failures (paru
+`can not install conflicting packages with --noconfirm`, dropped AUR
+RPC). That noconfirm conflict retries with paru `--useask` (pacman's
+`--ask`, auto-confirm conflicts) still under `--noconfirm`.
+`always = true` retries any non-zero exit.
+
+## Mise
+
+`[mise] wrap` (default true) plus `strip_bins_from_path` (default true)
+drops mise shims **and** `mise/installs/*/bin` from PATH for child
+processes (paru/makepkg must see `/usr/bin/python`, not mise's). This
+is not `mise deactivate`. PATH is restored after the plan; `mise up`
+runs only if we stripped and the plan was clean. Set
+`strip_bins_from_path = false` to leave PATH alone.
+
+## Logging
+
+Stderr is `level | time | msg` so columns line up. The level is colored
+on a TTY (the usual slog-console look; we keep `log/slog` and do not
+use zap/zerolog). A second copy is appended to
+`os.TempDir()/sysup.log` by default (macOS has no `$TEMP`; `os.TempDir`
+uses `$TMPDIR` or `/tmp`). `--log-file -` or an empty value turns the
+file off.
+
+## Skip
+
+`-s` / `--skip` matches a program `name` or `alias` (exact, case-sensitive).
+Unknown tokens exit 3.
+
+Quirk: skipping a name also drops later programs named `name-*`.
+Recipes that are one logical step split across files (for example
+`mirror`, then `mirror-stage` / `mirror-backup` / `mirror-swap`) stay
+consistent when the first step is omitted. `-s m` (alias of `mirror`)
+does not run `mirror-stage`. Skipping only `mirror-stage` still runs
+`mirror`. `mirrors` is not a child of `mirror`; the cut is the hyphen
+after the skipped name.
 
 ## Install
 

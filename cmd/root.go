@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/viper"
 
 	"sysup-go/internal/config"
+	"sysup-go/internal/logfmt"
 	"sysup-go/internal/program"
 )
 
@@ -50,6 +51,8 @@ type app struct {
 	doShutdown     bool
 	forceShutdown  bool
 	logLevel       string
+	logFile        string
+	logFileOut     *os.File
 	generateConfig bool
 }
 
@@ -69,6 +72,8 @@ func NewRoot() *cobra.Command {
 			` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
 
 -s / --skip drops programs by name or alias.
+Skipping a name also drops later programs named name-*
+(so -s m skips mirror and mirror-stage / mirror-backup / mirror-swap).
 -c / --continue accumulates program errors instead of stopping.`,
 		PersistentPreRunE: a.setup,
 		RunE:              a.runPlan,
@@ -86,12 +91,13 @@ func (a *app) bindFlags(root *cobra.Command) {
 
 	pf.StringVar(&a.cfgFile, "config", "", configHelp)
 	pf.BoolVar(&a.generateConfig, "generate-config", false, "Write default "+config.ConfigFileName+" and exit")
-	pf.StringSliceVarP(&a.skip, "skip", "s", nil, "Skip programs by name or alias")
+	pf.StringSliceVarP(&a.skip, "skip", "s", nil, "Skip programs by name or alias (also drops name-* children)")
 	pf.BoolVarP(&a.continueOnErr, "continue", "c", false, "Continue after program errors")
 	pf.BoolVar(&a.noCache, "no-cache", false, "Skip end-of-run cache sweep")
 	pf.BoolVarP(&a.doShutdown, "shutdown", "d", false, "Shut down after a clean run")
 	pf.BoolVar(&a.forceShutdown, "force-shutdown", false, "Shut down even if programs failed")
 	pf.StringVar(&a.logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	pf.StringVar(&a.logFile, "log-file", logfmt.DefaultFile(), "Also write logs to this file (empty or - to disable)")
 }
 
 func (a *app) configPath() (string, error) {
@@ -164,6 +170,7 @@ func (a *app) setup(cmd *cobra.Command, _ []string) error {
 	viper.AutomaticEnv()
 	a.skip = viper.GetStringSlice("skip")
 	a.logLevel = viper.GetString("log-level")
+	a.logFile = viper.GetString("log-file")
 	return nil
 }
 
@@ -178,10 +185,24 @@ func (a *app) writeDefaultsAndExit(cmd *cobra.Command, path string) error {
 	return nil
 }
 
-func (a *app) logger() *slog.Logger {
+func (a *app) logger(stderr *os.File) *slog.Logger {
 	var lvl slog.Level
 	if err := lvl.UnmarshalText([]byte(a.logLevel)); err != nil {
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+	console := logfmt.New(stderr, logfmt.Options{Level: lvl, Color: logfmt.ColorTTY(stderr)})
+	if logfmt.Disabled(a.logFile) {
+		return slog.New(console)
+	}
+	f, err := os.OpenFile(a.logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		fmt.Fprintf(stderr, "log-file %s: %v\n", a.logFile, err)
+		return slog.New(console)
+	}
+	a.logFileOut = f
+	file := logfmt.New(f, logfmt.Options{Level: lvl, Color: false})
+	return slog.New(slog.NewMultiHandler(console, file))
 }

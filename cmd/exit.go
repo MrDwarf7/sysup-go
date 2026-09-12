@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"sysup-go/internal/mise"
 	"sysup-go/internal/program"
 	"sysup-go/internal/runner"
 )
@@ -19,6 +20,9 @@ func ExitCode(err error) int {
 		return 3
 	}
 	if _, ok := errors.AsType[*runner.StepError](err); ok {
+		return 5
+	}
+	if _, ok := errors.AsType[*mise.Error](err); ok {
 		return 5
 	}
 	msg := err.Error()
