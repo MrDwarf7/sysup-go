@@ -11,18 +11,14 @@ import (
 )
 
 func (a *app) loadSpecs() ([]program.Spec, error) {
-	fsys := a.fs
-	if fsys == nil {
-		fsys = afero.NewOsFs()
-	}
-	dir, err := config.AppDir(fsys)
+	dir, err := config.Dir()
 	if err != nil {
 		return nil, err
 	}
 
 	// BasePathFs is the afero equivalent of os.DirFS(dir): Load sees
 	// programs.toml and programs/*.toml relative to the app dir.
-	specs, err := program.Load(afero.NewBasePathFs(fsys, dir))
+	specs, err := program.Load(afero.NewBasePathFs(a.fs, dir))
 	if err != nil {
 		return nil, err
 	}

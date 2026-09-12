@@ -92,41 +92,45 @@ func TestProgramLoadDirLexicalNotNumeric(t *testing.T) {
 	}
 }
 
-func TestProgramLoadDuplicateNames(t *testing.T) {
+func TestProgramLoadDuplicates(t *testing.T) {
 	t.Parallel()
 	pathA := program.DirName + "/10-a.toml"
 	pathB := program.DirName + "/20-b.toml"
-	for _, backend := range ioBackends() {
-		t.Run(backend, func(t *testing.T) {
-			t.Parallel()
-			_, err := loadProgramTree(t, "dup-names", backend)
-			if err == nil {
-				t.Fatal("expected error")
-			}
-			msg := err.Error()
-			if !strings.Contains(msg, pathA) || !strings.Contains(msg, pathB) {
-				t.Errorf("Error() = %q, want both paths", msg)
-			}
-		})
+	cases := []string{"dup-names", "dup-aliases"}
+	for _, tree := range cases {
+		for _, backend := range ioBackends() {
+			t.Run(tree+"/"+backend, func(t *testing.T) {
+				t.Parallel()
+				_, err := loadProgramTree(t, tree, backend)
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				msg := err.Error()
+				if !strings.Contains(msg, pathA) || !strings.Contains(msg, pathB) {
+					t.Errorf("Error() = %q, want both paths", msg)
+				}
+			})
+		}
 	}
 }
 
-func TestProgramLoadDuplicateAliases(t *testing.T) {
+func TestProgramLoadParallelRejected(t *testing.T) {
 	t.Parallel()
-	pathA := program.DirName + "/10-a.toml"
-	pathB := program.DirName + "/20-b.toml"
-	for _, backend := range ioBackends() {
-		t.Run(backend, func(t *testing.T) {
-			t.Parallel()
-			_, err := loadProgramTree(t, "dup-aliases", backend)
-			if err == nil {
-				t.Fatal("expected error")
-			}
-			msg := err.Error()
-			if !strings.Contains(msg, pathA) || !strings.Contains(msg, pathB) {
-				t.Errorf("Error() = %q, want both paths", msg)
-			}
-		})
+	fsys := afero.NewMemMapFs()
+	body := "[[program]]\nname = \"a\"\ncommand = [\"true\"]\nparallel = true\n"
+	if err := afero.WriteFile(fsys, program.FileName, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := program.Load(fsys)
+	var pe *program.Error
+	if !errors.As(err, &pe) {
+		t.Fatalf("got %T %v, want *program.Error", err, err)
+	}
+	if pe.Op != "validate" {
+		t.Errorf("Op = %q, want validate", pe.Op)
+	}
+	if !strings.Contains(err.Error(), "parallel not implemented") {
+		t.Errorf("Error() = %q, want parallel not implemented", err)
 	}
 }
 

@@ -20,7 +20,7 @@ func (r Resolver) PkgManager(ctx context.Context, cfgName string) (string, error
 		return "", wrap("pkg_manager", err)
 	}
 
-	path, handled, err := r.fromEnv(ctx)
+	path, handled, err := r.fromEnv()
 	if err != nil {
 		return "", err
 	}
@@ -39,10 +39,10 @@ func (r Resolver) PkgManager(ctx context.Context, cfgName string) (string, error
 	if cfgName == "" {
 		return "", wrap("pkg_manager", errors.New("cannot resolve a package manager"))
 	}
-	return r.look(ctx, cfgName)
+	return r.look(cfgName)
 }
 
-func (r Resolver) fromEnv(ctx context.Context) (string, bool, error) {
+func (r Resolver) fromEnv() (string, bool, error) {
 	if r.LookupEnv == nil {
 		return "", false, nil
 	}
@@ -53,23 +53,20 @@ func (r Resolver) fromEnv(ctx context.Context) (string, bool, error) {
 	if val == "" {
 		return "", true, wrap("env", errors.New("PKG_MANAGER is empty"))
 	}
-	path, err := r.look(ctx, val)
+	path, err := r.look(val)
 	return path, true, err
 }
 
-func (r Resolver) look(ctx context.Context, name string) (string, error) {
+func (r Resolver) look(name string) (string, error) {
 	path, err := r.LookPath(name)
 	if err != nil {
 		return "", wrap("lookpath", fmt.Errorf("%s: %w", name, err))
-	}
-	if err := ctx.Err(); err != nil {
-		return "", wrap("pkg_manager", err)
 	}
 	return path, nil
 }
 
 type hit struct {
-	helper Helper
+	helper string
 	path   string
 }
 
@@ -87,8 +84,8 @@ func (r Resolver) probeFallbacks(ctx context.Context) (string, error) {
 func startProbes(ctx context.Context, look LookPath) <-chan hit {
 	ch := make(chan hit, len(FallbackHelpers))
 	for _, helper := range FallbackHelpers {
-		go func(h Helper) {
-			path, err := look(h.String())
+		go func(h string) {
+			path, err := look(h)
 			if err != nil {
 				path = ""
 			}
@@ -101,8 +98,8 @@ func startProbes(ctx context.Context, look LookPath) <-chan hit {
 	return ch
 }
 
-func collectHits(ctx context.Context, ch <-chan hit) (map[Helper]string, error) {
-	found := make(map[Helper]string, len(FallbackHelpers))
+func collectHits(ctx context.Context, ch <-chan hit) (map[string]string, error) {
+	found := make(map[string]string, len(FallbackHelpers))
 	for range FallbackHelpers {
 		select {
 		case <-ctx.Done():
@@ -116,7 +113,7 @@ func collectHits(ctx context.Context, ch <-chan hit) (map[Helper]string, error) 
 	return found, nil
 }
 
-func pickHelper(found map[Helper]string) string {
+func pickHelper(found map[string]string) string {
 	for _, helper := range FallbackHelpers {
 		if path := found[helper]; path != "" {
 			return path

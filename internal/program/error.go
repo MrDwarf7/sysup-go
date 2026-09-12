@@ -9,16 +9,10 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	if e.Path != "" && e.Err != nil {
-		return fmt.Sprintf("program: %s %s: %v", e.Op, e.Path, e.Err)
-	}
-	if e.Path != "" {
-		return fmt.Sprintf("program: %s %s", e.Op, e.Path)
-	}
-	if e.Err != nil {
+	if e.Path == "" {
 		return fmt.Sprintf("program: %s: %v", e.Op, e.Err)
 	}
-	return fmt.Sprintf("program: %s", e.Op)
+	return fmt.Sprintf("program: %s %s: %v", e.Op, e.Path, e.Err)
 }
 
 func (e *Error) Unwrap() error {

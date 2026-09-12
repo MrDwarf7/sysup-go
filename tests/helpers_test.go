@@ -156,7 +156,7 @@ func discardLog() *slog.Logger {
 }
 
 type fakeEnvPath struct {
-	env   map[string]*string
+	env   map[string]string
 	paths map[string]string
 
 	mu    sync.Mutex
@@ -175,10 +175,10 @@ func (f *fakeEnvPath) lookPath(file string) (string, error) {
 
 func (f *fakeEnvPath) lookupEnv(key string) (string, bool) {
 	v, ok := f.env[key]
-	if !ok || v == nil {
+	if !ok {
 		return "", false
 	}
-	return *v, true
+	return v, true
 }
 
 func (f *fakeEnvPath) called() []string {
