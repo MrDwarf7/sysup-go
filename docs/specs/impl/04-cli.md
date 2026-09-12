@@ -47,6 +47,7 @@ emits.
 | `-d, --shutdown` | `BoolP` | false |
 | `--force-shutdown` | `Bool` (long only) | false |
 | `--log-level` | `String` (`info` / `debug` / `warn` / `error`) | `info` |
+| `--log-file` | `String` | `os.TempDir()/sysup.log` (`-` or empty disables) |
 
 `--force-shutdown` is **not** mutually exclusive with `-d`. Force
 implies shutdown. Do not `MarkFlagsMutuallyExclusive` those two.
