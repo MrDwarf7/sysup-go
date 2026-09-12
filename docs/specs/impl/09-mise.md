@@ -64,6 +64,9 @@ defer st.RestoreProcessPath()
 
 ## Behaviour
 
+`Begin` is called with `cfg.Mise.Wrap && cfg.Mise.StripBinsFromPath`.
+`strip_bins_from_path` defaults true.
+
 `enabled == false`: `State{DidStrip: false}`. No PATH walk.
 
 `LookPath("mise")` fails: same, `DidStrip: false`. Log info. Not an
@@ -72,8 +75,11 @@ error.
 Otherwise, **once** at Begin:
 
 1. Resolve shim dir: `MISE_SHIMS_DIR` if set, else
-   `$XDG_DATA_HOME/mise/shims` / `~/.local/share/mise/shims`.
-2. Walk `PATH` **once**. If that dir is an entry, set
+   `$XDG_DATA_HOME/mise/shims` / `~/.local/share/mise/shims`. Data
+   dir is `$XDG_DATA_HOME/mise` (or `~/.local/share/mise`).
+2. Walk `PATH` **once**. Drop the shim dir **and** any entry under
+   the data dir (`installs/python/latest/bin` etc). If anything was
+   dropped, set
    `DidStrip: true`, `PathOrig: os.Getenv("PATH")`, `ShimDir: dir`,
    and `os.Setenv("PATH", stripped)` for this process so we do not
    rebuild env per child from a stale parent PATH. Children inherit
