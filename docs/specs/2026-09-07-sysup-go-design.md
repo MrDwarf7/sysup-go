@@ -199,9 +199,13 @@ command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 | `optional`    | If true, missing argv0 skips the program (not a failure). If false, missing argv0 is a validate/run error. |
 | `parallel`    | Default false. See waves.                                                                                  |
 | `command`     | Required non-empty argv. `command[0]` is the binary. No shell.                                             |
+| `retries`     | Optional `{ always, max_attempts }`. Global `[retries].max_attempts` > 0 is a hard cap.                    |
 
 There is no `kind`, no `skip` letter derived from the first character of
-`name`, no reserved `name`. `--skip` matches `name` or `alias`.
+`name`, no reserved `name`. `--skip` matches `name` or `alias`. Skipping
+a name also drops later programs named `name-*` (so `-s m` skips
+`mirror` and `mirror-stage` / `mirror-backup` / `mirror-swap`). Skipping
+only the child does not skip the parent.
 
 ## Skip vs continue
 

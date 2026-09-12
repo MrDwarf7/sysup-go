@@ -19,6 +19,7 @@ type fileConfig struct {
 	Cache      fileCache      `toml:"cache"`
 	PkgManager filePkgManager `toml:"pkg_manager"`
 	Shutdown   fileShutdown   `toml:"shutdown"`
+	Retries    fileRetries    `toml:"retries"`
 }
 
 type fileSudo struct {
@@ -27,7 +28,8 @@ type fileSudo struct {
 }
 
 type fileMise struct {
-	Wrap bool `toml:"wrap"`
+	Wrap              bool `toml:"wrap"`
+	StripBinsFromPath bool `toml:"strip_bins_from_path"`
 }
 
 type fileCache struct {
@@ -45,6 +47,11 @@ type fileShutdown struct {
 	Wait  string `toml:"wait"`
 }
 
+type fileRetries struct {
+	Always      bool `toml:"always"`
+	MaxAttempts int  `toml:"max_attempts"`
+}
+
 func toFile(cfg Config) fileConfig {
 	inc := cfg.Cache.IncludeDirs
 	if inc == nil {
@@ -59,7 +66,10 @@ func toFile(cfg Config) fileConfig {
 			Keepalive: cfg.Sudo.Keepalive,
 			Interval:  compactDuration(cfg.Sudo.Interval),
 		},
-		Mise: fileMise{Wrap: cfg.Mise.Wrap},
+		Mise: fileMise{
+			Wrap:              cfg.Mise.Wrap,
+			StripBinsFromPath: cfg.Mise.StripBinsFromPath,
+		},
 		Cache: fileCache{
 			Enabled:     cfg.Cache.Enabled,
 			IncludeDirs: inc,
@@ -69,6 +79,10 @@ func toFile(cfg Config) fileConfig {
 		Shutdown: fileShutdown{
 			Force: cfg.Shutdown.Force,
 			Wait:  compactDuration(cfg.Shutdown.Wait),
+		},
+		Retries: fileRetries{
+			Always:      cfg.Retries.Always,
+			MaxAttempts: cfg.Retries.MaxAttempts,
 		},
 	}
 }

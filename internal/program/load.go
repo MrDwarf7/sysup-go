@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/afero"
@@ -65,18 +66,43 @@ func classify(file fs.FileInfo, fileErr error, dir fs.FileInfo, dirErr error) (r
 	return registryNone, nil
 }
 
+// Filter drops specs whose Name or Alias is in skip. Unknown tokens
+// return SkipError. Matching is exact and case-sensitive.
+//
+// Quirk: skipping a name also drops specs named name-*. Skipping
+// "mirror" (or its alias) drops mirror-stage, mirror-backup, and
+// mirror-swap so a split recipe is not left half-run. Skipping only
+// a child does not skip the parent. The cut is parent + "-";
+// "mirrors" is not a child of "mirror".
 func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	if len(skip) == 0 {
 		return specs, nil
 	}
+	drop, err := skipSet(specs, skip)
+	if err != nil {
+		return nil, err
+	}
+	dropped := droppedNames(specs, drop)
+	out := make([]Spec, 0, len(specs))
+	for _, s := range specs {
+		if _, ok := dropped[s.Name]; ok {
+			continue
+		}
+		if childOfDropped(s.Name, dropped) {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
 
+func skipSet(specs []Spec, skip []string) (map[string]struct{}, error) {
 	known := make(map[string]struct{}, len(specs)*2)
 	for _, s := range specs {
 		known[s.Name] = struct{}{}
 		known[s.Alias] = struct{}{}
 	}
 	delete(known, "")
-
 	drop := make(map[string]struct{}, len(skip))
 	for _, token := range skip {
 		if _, ok := known[token]; !ok {
@@ -84,17 +110,30 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 		}
 		drop[token] = struct{}{}
 	}
+	return drop, nil
+}
 
-	out := make([]Spec, 0, len(specs))
+func droppedNames(specs []Spec, drop map[string]struct{}) map[string]struct{} {
+	dropped := make(map[string]struct{}, len(specs))
 	for _, s := range specs {
 		_, skipName := drop[s.Name]
 		_, skipAlias := drop[s.Alias]
 		if skipName || skipAlias {
-			continue
+			dropped[s.Name] = struct{}{}
 		}
-		out = append(out, s)
 	}
-	return out, nil
+	return dropped
+}
+
+// childOfDropped reports whether name is parent + "-" + rest for any
+// skipped parent. This is the Filter name-* quirk, not filename magic.
+func childOfDropped(name string, dropped map[string]struct{}) bool {
+	for parent := range dropped {
+		if parent != "" && strings.HasPrefix(name, parent+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 func loadFile(fsys afero.Fs, path string) ([]Spec, error) {
@@ -180,6 +219,9 @@ func validate(s Spec) error {
 		if arg == "" {
 			return &Error{Op: "validate", Path: s.Source, Err: fmt.Errorf("command[%d] empty", i)}
 		}
+	}
+	if s.Retries.MaxAttempts < 0 {
+		return &Error{Op: "validate", Path: s.Source, Err: errors.New("retries.max_attempts negative")}
 	}
 	return nil
 }

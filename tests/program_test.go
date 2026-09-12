@@ -222,6 +222,30 @@ func TestProgramFilter(t *testing.T) {
 		}
 	})
 
+	t.Run("skip parent drops name- prefix children", func(t *testing.T) {
+		chain := []program.Spec{
+			{Name: "mirror", Alias: "m", Command: []string{"rate-mirrors"}},
+			{Name: "mirror-stage", Alias: "mt", Command: []string{"install"}},
+			{Name: "mirror-backup", Alias: "mb", Command: []string{"cp"}},
+			{Name: "mirror-swap", Alias: "mw", Command: []string{"mv"}},
+			{Name: "pacman", Alias: "p", Command: []string{"pacman"}},
+		}
+		got, err := program.Filter(chain, []string{"m"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if names := specNames(got); !slices.Equal(names, []string{"pacman"}) {
+			t.Errorf("names = %v, want [pacman]", names)
+		}
+		got, err = program.Filter(chain, []string{"mt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if names := specNames(got); !slices.Equal(names, []string{"mirror", "mirror-backup", "mirror-swap", "pacman"}) {
+			t.Errorf("skip child only = %v", names)
+		}
+	})
+
 	t.Run("empty alias is not a skip token", func(t *testing.T) {
 		withBlank := []program.Spec{
 			{Name: "mirror", Command: []string{"rate-mirrors"}},

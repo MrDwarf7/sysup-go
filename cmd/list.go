@@ -8,7 +8,7 @@ func (a *app) listCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Short:   "List discovered programs in run order",
-		Long:    "List programs from programs.toml or programs/*.toml. --skip filters the list.",
+		Long:    "List programs from programs.toml or programs/*.toml. --skip filters the list (name-* children too).",
 		Aliases: []string{"ls", "show"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			specs, err := a.loadSpecs()

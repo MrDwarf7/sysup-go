@@ -54,6 +54,7 @@ interval = "50s"
 
 [mise]
 wrap = true
+strip_bins_from_path = true
 
 [cache]
 enabled = true
@@ -66,6 +67,10 @@ name = ""
 [shutdown]
 force = false
 wait = "1m"
+
+[retries]
+always = false
+max_attempts = 0
 ```
 
 `interval` and `wait` decode as `time.Duration`. Invalid duration is a

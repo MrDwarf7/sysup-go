@@ -17,6 +17,15 @@ type Config struct {
 	Cache      Cache      `mapstructure:"cache"`
 	PkgManager PkgManager `mapstructure:"pkg_manager"`
 	Shutdown   Shutdown   `mapstructure:"shutdown"`
+	Retries    Retries    `mapstructure:"retries"`
+}
+
+// Retries is the global retry policy. MaxAttempts 0 means no ceiling
+// (recipe max applies as-is). A positive MaxAttempts is a hard cap
+// on every step, even if the recipe asks for more.
+type Retries struct {
+	Always      bool `mapstructure:"always"`
+	MaxAttempts int  `mapstructure:"max_attempts"`
 }
 
 type Sudo struct {
@@ -25,7 +34,8 @@ type Sudo struct {
 }
 
 type Mise struct {
-	Wrap bool `mapstructure:"wrap"`
+	Wrap              bool `mapstructure:"wrap"`
+	StripBinsFromPath bool `mapstructure:"strip_bins_from_path"`
 }
 
 type Cache struct {
@@ -50,7 +60,8 @@ func Defaults() Config {
 			Interval:  50 * time.Second,
 		},
 		Mise: Mise{
-			Wrap: true,
+			Wrap:              true,
+			StripBinsFromPath: true,
 		},
 		Cache: Cache{
 			Enabled: true,
