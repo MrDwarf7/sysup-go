@@ -5,6 +5,17 @@
 
 set shell := ["bash", "-cu"]
 
+# Non-empty: build/run export SYSUP_CONFIG and `just r`/`just rr` pass
+# --config pointing at the live XDG sysup config (programs on disk).
+# Empty: inherit env. Later this becomes "" so we hit in-repo fixtures.
+USE_USER_CONFIG := "1"
+
+home_dir := env("HOME")
+user_xdg := env("XDG_CONFIG_HOME", home_dir / ".config")
+user_config := user_xdg / "sysup" / "config.toml"
+config_env := if USE_USER_CONFIG != "" { "SYSUP_CONFIG=" + quote(user_config) } else { "" }
+config_flag := if USE_USER_CONFIG != "" { "--config=" + user_config } else { "" }
+
 bindir := "bin"
 bin_dbg := bindir / "sysup-dbg"
 bin_rel := bindir / "sysup"
@@ -32,13 +43,13 @@ _ensure-bindir:
 # build debug binary (b) -> bin/sysup-dbg  (race + no-opt)
 alias b := build
 build: _ensure-bindir
-    {{ race_env }} go build -race -gcflags "{{ gcflags_debug }}" -o {{ bin_dbg }} .
+    {{ config_env }} {{ race_env }} go build -race -gcflags "{{ gcflags_debug }}" -o {{ bin_dbg }} .
 
 # build optimized release binary (br) -> bin/sysup
 # CGO off, stripped, trimpath, no VCS stamp, readonly modules, no race
 alias br := build-release
 build-release: _ensure-bindir
-    CGO_ENABLED=0 go build -mod=readonly -ldflags "{{ ldflags_release }}" -trimpath -buildvcs=false -o {{ bin_rel }} .
+    {{ config_env }} CGO_ENABLED=0 go build -mod=readonly -ldflags "{{ ldflags_release }}" -trimpath -buildvcs=false -o {{ bin_rel }} .
 
 # build experimental binary (be) -> bin/sysup-expr
 # compile-time checkptr=2; run with `just re` for GOGC=off + clobber/efence.
@@ -101,12 +112,12 @@ cover: _ensure-bindir
 # debug-build then run: `just r list`
 alias r := run
 run *args: build
-    {{ race_env }} ./{{ bin_dbg }} {{ args }}
+    {{ config_env }} {{ race_env }} ./{{ bin_dbg }} {{ config_flag }} {{ args }}
 
 # release-build then run: `just rr list`
 alias rr := run-release
 run-release *args: build-release
-    ./{{ bin_rel }} {{ args }}
+    {{ config_env }} ./{{ bin_rel }} {{ config_flag }} {{ args }}
 
 # experimental-build then run: `just re list`
 # GC off, freed memory clobbered, unique pages (efence), extra pointer checks.
