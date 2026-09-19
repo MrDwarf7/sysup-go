@@ -8,6 +8,7 @@ import (
 	"sysup-go/internal/mise"
 	"sysup-go/internal/program"
 	"sysup-go/internal/runner"
+	"sysup-go/internal/sudo"
 )
 
 func TestExitCode(t *testing.T) {
@@ -24,6 +25,7 @@ func TestExitCode(t *testing.T) {
 		{name: "step failure", err: &runner.StepError{Name: "aur", Err: errors.New("exit 1")}, want: 5},
 		{name: "continue failures", err: &runner.ContinueError{Steps: []runner.StepError{{Name: "aur", Err: errors.New("exit 1")}}}, want: 5},
 		{name: "mise up", err: &mise.Error{Op: "up", Err: errors.New("exit 1")}, want: 5},
+		{name: "sudo prime", err: &sudo.Error{Op: "prime", Err: errors.New("auth")}, want: 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

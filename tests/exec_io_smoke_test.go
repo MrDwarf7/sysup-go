@@ -27,7 +27,6 @@ func mustPTY(t *testing.T) (tty *os.File) {
 		_ = m.Close()
 		_ = s.Close()
 	})
-	// Drain master so slave writes from the parent tee never block.
 	go func() { _, _ = io.Copy(io.Discard, m) }()
 	return s
 }
@@ -52,7 +51,7 @@ func TestExecSingleAttemptChildSeesTTY(t *testing.T) {
 	}
 }
 
-func TestExecMultiAttemptPTYChildSeesTTY(t *testing.T) {
+func TestExecMultiAttemptChildSeesTTY(t *testing.T) {
 	t.Parallel()
 	sh, err := exec.LookPath("sh")
 	if err != nil {
@@ -60,6 +59,8 @@ func TestExecMultiAttemptPTYChildSeesTTY(t *testing.T) {
 	}
 	tty := mustPTY(t)
 
+	// Multi-attempt still passes *os.File through (no PTY wrap) so the
+	// child keeps isatty and sudo can own the real stdin TTY.
 	e := program.Exec{
 		Spec:     program.Spec{Name: "tty2", Command: []string{"sh", "-c", ttyProbeScript()}},
 		LookPath: func(string) (string, error) { return sh, nil },
@@ -68,14 +69,12 @@ func TestExecMultiAttemptPTYChildSeesTTY(t *testing.T) {
 		Attempts: 2,
 	}
 	if err := e.Run(context.Background()); err != nil {
-		t.Fatalf("multi-attempt PTY child should see TTY: %v", err)
+		t.Fatalf("multi-attempt child should see TTY: %v", err)
 	}
 }
 
-// TestExecStreamingNotBatched checks that flushed child lines reach the
-// parent as separate writes over time, not one dump at exit. Timing is
-// relative (spread across writes), not absolute wall-clock, so slow CI
-// hosts and cold interpreters do not flake.
+// TestExecStreamingNotBatched checks flushed child lines arrive as
+// separate writes over time. Relative spread, not absolute latency.
 func TestExecStreamingNotBatched(t *testing.T) {
 	sh, err := exec.LookPath("sh")
 	if err != nil {
@@ -84,8 +83,6 @@ func TestExecStreamingNotBatched(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("python3 not on PATH")
 	}
-	// 4 lines, 200ms apart, each flushed. Pipe path still streams when
-	// the child flushes; we only assert multiple timed writes.
 	script := `python3 -c '
 import sys, time
 for i in range(4):
@@ -136,10 +133,10 @@ exit 1`
 	}
 }
 
-// TestExecPTYCapturesRetryText ensures the PTY tee still feeds the
-// capture buffer so classified retries keep working when the display
-// is a terminal file. Skips when the host cannot open a PTY.
-func TestExecPTYCapturesRetryText(t *testing.T) {
+// TestExecTTYNoconfirmRetriesWithoutCapture: live *os.File display
+// skips stream capture (sudo/password safety). --noconfirm failures
+// still escalate with --useask via the empty-output heuristic.
+func TestExecTTYNoconfirmRetriesWithoutCapture(t *testing.T) {
 	t.Parallel()
 	sh, err := exec.LookPath("sh")
 	if err != nil {
@@ -151,25 +148,45 @@ func TestExecPTYCapturesRetryText(t *testing.T) {
 echo 'can not install conflicting packages with --noconfirm' >&2
 exit 1`
 	e := program.Exec{
-		Spec:     program.Spec{Name: "aur-pty", Command: []string{"sh", "-c", script, "sh"}},
+		Spec: program.Spec{
+			Name:    "aur-tty",
+			Command: []string{"sh", "-c", script, "sh", "--noconfirm"},
+		},
 		LookPath: func(string) (string, error) { return sh, nil },
 		Stdout:   tty,
 		Stderr:   tty,
 		Attempts: 2,
 	}
 	if err := e.Run(context.Background()); err != nil {
-		t.Fatalf("PTY retry with --useask = %v, want nil", err)
+		t.Fatalf("TTY noconfirm retry with --useask = %v, want nil", err)
+	}
+}
+
+// TestExecStdinIsRealFile ensures children inherit a readable stdin
+// fd (the process TTY in interactive runs). sudo relies on that to
+// prompt and hide passwords.
+func TestExecStdinIsRealFile(t *testing.T) {
+	t.Parallel()
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh not on PATH")
+	}
+	e := program.Exec{
+		Spec:     program.Spec{Name: "stdin", Command: []string{"sh", "-c", "test -r /dev/fd/0 || test -r /dev/stdin"}},
+		LookPath: func(string) (string, error) { return sh, nil },
+		Stdout:   io.Discard,
+		Stderr:   io.Discard,
+		Attempts: 1,
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatalf("child should inherit readable stdin: %v", err)
 	}
 }
 
 func ttyProbeScript() string {
-	// Prefer test(1): always present with sh. python3 isatty is fine too
-	// but adds a dependency some CI images lack.
 	return `test -t 1`
 }
 
-// chunkWriter records the wall time of each non-empty Write so tests
-// can tell streaming (many spaced writes) from a single end dump.
 type chunkWriter struct {
 	mu     sync.Mutex
 	stamps []time.Time

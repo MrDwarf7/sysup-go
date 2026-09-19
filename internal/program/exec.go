@@ -13,8 +13,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/creack/pty"
 )
 
 const noconfirmConflict = "can not install conflicting packages with --noconfirm"
@@ -47,10 +45,11 @@ func (e Exec) Run(ctx context.Context) error {
 		return err
 	}
 	attempts := max(e.Attempts, 1)
-	// Capture only when a later attempt may need the child's text
-	// (classified retries / --useask). MultiWriter pipes steal the
-	// TTY: full-block buffering and no colors. Skip capture on the
-	// common single-attempt path so os.Stdout/os.Stderr stay real.
+	// Capture only when a later attempt may need child text AND we are
+	// not on a real *os.File display. Pipes/MultiWriter/PTY all break
+	// the real TTY: sudo can no longer hide passwords, and capture
+	// buffers would retain secrets. Live TTY runs pass files through
+	// and classify retries without reading the stream.
 	needCapture := attempts > 1
 	argv := append([]string{}, e.Spec.Command...)
 	var last error
@@ -62,30 +61,49 @@ func (e Exec) Run(ctx context.Context) error {
 			buf = &captured
 		}
 		last = e.runOnce(ctx, argv, buf)
-		out := ""
-		if buf != nil {
-			out = buf.String()
-		}
-		if last == nil || !e.shouldRetry(ctx, out, last, i, attempts) {
+		out := bufString(buf)
+		if last == nil || !e.shouldRetry(ctx, out, last, i, attempts, argv) {
 			return last
 		}
-		if noconfirmConflicted(out) {
-			argv = withFlag(argv, useAskFlag)
-		}
-		log := e.Log
-		if log == nil {
-			log = slog.Default()
-		}
-		log.WarnContext(ctx, "retrying", "step", e.Spec.Name, "attempt", i+1, "max", attempts)
+		argv = e.prepareRetry(argv, out)
+		e.logRetry(ctx, i+1, attempts)
 	}
 	return last
 }
 
-func (e Exec) shouldRetry(ctx context.Context, output string, err error, i, attempts int) bool {
+func bufString(buf *bytes.Buffer) string {
+	if buf == nil {
+		return ""
+	}
+	return buf.String()
+}
+
+func (e Exec) prepareRetry(argv []string, out string) []string {
+	if noconfirmConflicted(out) || (out == "" && hasFlag(argv, "--noconfirm")) {
+		return withFlag(argv, useAskFlag)
+	}
+	return argv
+}
+
+func (e Exec) logRetry(ctx context.Context, attempt, maxAttempts int) {
+	log := e.Log
+	if log == nil {
+		log = slog.Default()
+	}
+	log.WarnContext(ctx, "retrying", "step", e.Spec.Name, "attempt", attempt, "max", maxAttempts)
+}
+
+func (e Exec) shouldRetry(ctx context.Context, output string, err error, i, attempts int, argv []string) bool {
 	if err == nil || ctx.Err() != nil || i == attempts {
 		return false
 	}
-	return e.Always || retryable(output, err)
+	if e.Always || retryable(output, err) {
+		return true
+	}
+	// Live TTY path skips capture (output ""). Still escalate a
+	// --noconfirm failure with --useask: that is the AUR conflict case
+	// the recipe max_attempts is for.
+	return output == "" && hasFlag(argv, "--noconfirm") && !hasFlag(argv, useAskFlag)
 }
 
 func (e Exec) runOnce(ctx context.Context, argv []string, captured *bytes.Buffer) error {
@@ -108,31 +126,29 @@ func (e Exec) runOnce(ctx context.Context, argv []string, captured *bytes.Buffer
 	}
 	stdout := orWriter(e.Stdout, os.Stdout)
 	stderr := orWriter(e.Stderr, os.Stderr)
+	cmd := e.command(ctx, path, argv[1:])
 
-	if captured == nil {
-		// Real files stay files: child keeps isatty, line buffering, colors.
-		cmd := e.command(ctx, path, argv[1:])
+	// Real *os.File (interactive terminal or a test PTY slave): give
+	// the child the fds directly. Stdin is always the process TTY so
+	// sudo/pacman own echo and password entry. Never tee or PTY-wrap
+	// this path -- that is what printed passwords in the clear.
+	if fileWriter(stdout) || fileWriter(stderr) {
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 		cmd.Stdin = os.Stdin
+		if captured != nil {
+			captured.Reset() // no bytes; callers treat empty as live-TTY
+		}
 		return cmd.Run()
 	}
 
-	// Need the bytes for retry classification. A pipe makes the child
-	// full-buffer and drop ANSI; give it a PTY when the display is a
-	// terminal so streaming and colors match a direct TTY run.
-	if display, ok := ttyDisplay(stdout, stderr); ok {
-		err := runPTY(e.command(ctx, path, argv[1:]), display, captured)
-		if err == nil || !errors.Is(err, errPTYStart) {
-			return err
-		}
-		// PTY unavailable (chroot, missing /dev/ptmx, etc.): fall through
-		// to pipes so retries still see the output text.
+	if captured != nil {
+		cmd.Stdout = io.MultiWriter(stdout, captured)
+		cmd.Stderr = io.MultiWriter(stderr, captured)
+	} else {
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
 	}
-
-	cmd := e.command(ctx, path, argv[1:])
-	cmd.Stdout = io.MultiWriter(stdout, captured)
-	cmd.Stderr = io.MultiWriter(stderr, captured)
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
@@ -152,88 +168,9 @@ func (e Exec) command(ctx context.Context, path string, args []string) *exec.Cmd
 	return cmd
 }
 
-// errPTYStart marks pty.Start failure so runOnce can fall back to pipes.
-var errPTYStart = errors.New("pty start")
-
-// runPTY starts cmd on a pseudo-terminal, tees the slave output to
-// display and captured, and copies the real stdin into the PTY so
-// sudo/password prompts still work.
-func runPTY(cmd *exec.Cmd, display *os.File, captured *bytes.Buffer) error {
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return fmt.Errorf("%w: %w", errPTYStart, err)
-	}
-	defer func() { _ = ptmx.Close() }()
-
-	// Only forward a real interactive stdin. In tests/CI the process
-	// stdin is often a pipe or closed; copying it into the PTY races
-	// with short-lived children and can drop capture bytes.
-	if isTTY(os.Stdin) {
-		_ = pty.InheritSize(os.Stdin, ptmx)
-		go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
-	} else if display != nil {
-		_ = pty.InheritSize(display, ptmx)
-	}
-
-	out := &ptyTee{display: display, buf: captured}
-	copyDone := make(chan struct{})
-	go func() {
-		_, _ = io.Copy(out, ptmx)
-		close(copyDone)
-	}()
-
-	waitErr := cmd.Wait()
-	// Child has exited and closed the slave. Let the master drain to
-	// EOF so capture sees the last lines; only then close the master
-	// (closing early races the copy goroutine and drops output).
-	select {
-	case <-copyDone:
-	case <-time.After(2 * time.Second):
-		_ = ptmx.Close()
-		<-copyDone
-	}
-	return waitErr
-}
-
-// ttyDisplay picks a terminal file to show PTY output on. Writing the
-// merged PTY stream to both stdout and stderr would double every line
-// when both are the same interactive terminal.
-func ttyDisplay(stdout, stderr io.Writer) (*os.File, bool) {
-	if f, ok := stdout.(*os.File); ok && isTTY(f) {
-		return f, true
-	}
-	if f, ok := stderr.(*os.File); ok && isTTY(f) {
-		return f, true
-	}
-	return nil, false
-}
-
-func isTTY(f *os.File) bool {
-	if f == nil {
-		return false
-	}
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return info.Mode()&os.ModeCharDevice != 0
-}
-
-// ptyTee always records into buf. Display writes are best-effort so a
-// short write or EIO on the terminal cannot starve retry capture.
-type ptyTee struct {
-	display io.Writer
-	buf     *bytes.Buffer
-}
-
-func (t *ptyTee) Write(p []byte) (int, error) {
-	if t.buf != nil {
-		_, _ = t.buf.Write(p)
-	}
-	if t.display != nil {
-		_, _ = t.display.Write(p)
-	}
-	return len(p), nil
+func fileWriter(w io.Writer) bool {
+	_, ok := w.(*os.File)
+	return ok
 }
 
 func retryable(output string, err error) bool {
@@ -248,6 +185,10 @@ func retryable(output string, err error) bool {
 
 func noconfirmConflicted(output string) bool {
 	return strings.Contains(output, noconfirmConflict)
+}
+
+func hasFlag(argv []string, flag string) bool {
+	return slices.Contains(argv, flag)
 }
 
 func withFlag(argv []string, flag string) []string {

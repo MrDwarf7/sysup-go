@@ -12,6 +12,7 @@ import (
 	"sysup-go/internal/mise"
 	"sysup-go/internal/program"
 	"sysup-go/internal/runner"
+	"sysup-go/internal/sudo"
 )
 
 func (a *app) runPlan(cmd *cobra.Command, _ []string) error {
@@ -30,6 +31,19 @@ func (a *app) runPlan(cmd *cobra.Command, _ []string) error {
 			}
 		}()
 	}
+
+	if a.cfg.Sudo.Keepalive {
+		ka := sudo.KeepAlive{
+			Interval: a.cfg.Sudo.Interval,
+			Log:      log,
+		}
+		stopKA, err := ka.Start(ctx)
+		if err != nil {
+			return err
+		}
+		defer stopKA()
+	}
+
 	wrap := mise.Wrap{LookPath: exec.LookPath, Log: log}
 	st := wrap.Begin(a.cfg.Mise.Wrap && a.cfg.Mise.StripBinsFromPath)
 	childEnv := st.ChildEnv(os.Environ())
