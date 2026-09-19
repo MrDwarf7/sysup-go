@@ -14,7 +14,7 @@ func TestPkgManager(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		env          map[string]*string
+		env          map[string]string
 		paths        map[string]string
 		cfgName      string
 		ctx          context.Context
@@ -27,15 +27,15 @@ func TestPkgManager(t *testing.T) {
 		{
 			name: "unset env, paru and yay both found",
 			paths: map[string]string{
-				resolve.HelperParu.String(): "/usr/bin/paru",
-				resolve.HelperYay.String():  "/usr/bin/yay",
+				"paru": "/usr/bin/paru",
+				"yay":  "/usr/bin/yay",
 			},
 			want: "/usr/bin/paru",
 		},
 		{
 			name: "unset env, only yay",
 			paths: map[string]string{
-				resolve.HelperYay.String(): "/usr/bin/yay",
+				"yay": "/usr/bin/yay",
 			},
 			want: "/usr/bin/yay",
 		},
@@ -53,37 +53,37 @@ func TestPkgManager(t *testing.T) {
 		},
 		{
 			name: "empty PKG_MANAGER",
-			env: map[string]*string{
-				resolve.EnvPkgManager: new(""),
+			env: map[string]string{
+				resolve.EnvPkgManager: "",
 			},
 			paths: map[string]string{
-				resolve.HelperParu.String(): "/usr/bin/paru",
-				resolve.HelperYay.String():  "/usr/bin/yay",
+				"paru": "/usr/bin/paru",
+				"yay":  "/usr/bin/yay",
 			},
 			wantErr:    true,
 			noLookPath: true,
 		},
 		{
 			name: "PKG_MANAGER set, missing",
-			env: map[string]*string{
-				resolve.EnvPkgManager: new("foo"),
+			env: map[string]string{
+				resolve.EnvPkgManager: "foo",
 			},
 			paths: map[string]string{
-				resolve.HelperParu.String(): "/usr/bin/paru",
-				resolve.HelperYay.String():  "/usr/bin/yay",
+				"paru": "/usr/bin/paru",
+				"yay":  "/usr/bin/yay",
 			},
 			wantErr:   true,
 			noParuYay: true,
 		},
 		{
 			name: "PKG_MANAGER set, found",
-			env: map[string]*string{
-				resolve.EnvPkgManager: new("foo"),
+			env: map[string]string{
+				resolve.EnvPkgManager: "foo",
 			},
 			paths: map[string]string{
-				"foo":                       "/bin/foo",
-				resolve.HelperParu.String(): "/usr/bin/paru",
-				resolve.HelperYay.String():  "/usr/bin/yay",
+				"foo":  "/bin/foo",
+				"paru": "/usr/bin/paru",
+				"yay":  "/usr/bin/yay",
 			},
 			want:      "/bin/foo",
 			noParuYay: true,
@@ -91,7 +91,7 @@ func TestPkgManager(t *testing.T) {
 		{
 			name:         "cancelled context",
 			ctx:          canceled,
-			paths:        map[string]string{resolve.HelperParu.String(): "/usr/bin/paru"},
+			paths:        map[string]string{"paru": "/usr/bin/paru"},
 			cfgName:      "custom",
 			wantErr:      true,
 			wantCanceled: true,
@@ -140,7 +140,7 @@ func TestPkgManager(t *testing.T) {
 			}
 			fallback := make(map[string]struct{}, len(resolve.FallbackHelpers))
 			for _, h := range resolve.FallbackHelpers {
-				fallback[h.String()] = struct{}{}
+				fallback[h] = struct{}{}
 			}
 			for _, c := range calls {
 				if _, ok := fallback[c]; ok {

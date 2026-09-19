@@ -7,10 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 
 	"sysup-go/internal/config"
 )
@@ -121,20 +119,6 @@ func TestConfigAppDirFromXDG(t *testing.T) {
 	}
 }
 
-func TestConfigAppDirNilFs(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	want := expectedAppDir(t, xdg)
-
-	got, err := config.AppDir(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Errorf("AppDir = %q, want %q", got, want)
-	}
-}
-
 func TestConfigAppDirCreatesMissing(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg-missing")
 	fsys := afero.NewMemMapFs()
@@ -175,10 +159,9 @@ func TestConfigAppDirExists(t *testing.T) {
 
 func TestConfigAppConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
-	fsys := afero.NewMemMapFs()
 	want := filepath.Join(expectedAppDir(t, "/xdg"), config.ConfigFileName)
 
-	got, err := config.AppConfig(fsys)
+	got, err := config.AppConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,35 +170,15 @@ func TestConfigAppConfig(t *testing.T) {
 	}
 }
 
-func TestConfigOriginFrom(t *testing.T) {
-	t.Parallel()
-	if o := config.OriginFrom(nil); o.Kind != config.KindDefault {
-		t.Errorf("nil viper Kind = %v, want KindDefault", o.Kind)
-	}
-	v := viper.New()
-	if o := config.OriginFrom(v); o.Kind != config.KindDefault || o.Path != "" {
-		t.Errorf("empty viper = %+v, want default", o)
-	}
-
-	path := fixturePath(t, "config", "mise-wrap.toml")
-	v.SetConfigFile(path)
-	if err := v.ReadInConfig(); err != nil {
+func TestConfigDirDoesNotCreate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/xdg-no-create")
+	got, err := config.Dir()
+	if err != nil {
 		t.Fatal(err)
 	}
-	o := config.OriginFrom(v)
-	if o.Kind != config.KindFile || o.Path != path {
-		t.Errorf("Origin = %+v, want file %q", o, path)
-	}
-}
-
-func TestConfigDefaults(t *testing.T) {
-	t.Parallel()
-	c := config.Defaults()
-	if !c.Sudo.Keepalive || c.Sudo.Interval != 50*time.Second {
-		t.Errorf("sudo = %+v", c.Sudo)
-	}
-	if !c.Mise.Wrap || !c.Cache.Enabled || c.Shutdown.Force || c.Shutdown.Wait != time.Minute {
-		t.Errorf("defaults = %+v", c)
+	want := expectedAppDir(t, "/xdg-no-create")
+	if got != want {
+		t.Errorf("Dir = %q, want %q", got, want)
 	}
 }
 
