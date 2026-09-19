@@ -165,12 +165,16 @@ func runPTY(cmd *exec.Cmd, display *os.File, captured *bytes.Buffer) error {
 	}
 	defer func() { _ = ptmx.Close() }()
 
+	// Only forward a real interactive stdin. In tests/CI the process
+	// stdin is often a pipe or closed; copying it into the PTY races
+	// with short-lived children and can drop capture bytes.
 	if isTTY(os.Stdin) {
 		_ = pty.InheritSize(os.Stdin, ptmx)
 		go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
-	} else {
+	} else if display != nil {
 		_ = pty.InheritSize(display, ptmx)
 	}
+
 	out := &ptyTee{display: display, buf: captured}
 	copyDone := make(chan struct{})
 	go func() {
@@ -179,9 +183,15 @@ func runPTY(cmd *exec.Cmd, display *os.File, captured *bytes.Buffer) error {
 	}()
 
 	waitErr := cmd.Wait()
-	// Unblock the copy if the child exited without closing output.
-	_ = ptmx.Close()
-	<-copyDone
+	// Child has exited and closed the slave. Let the master drain to
+	// EOF so capture sees the last lines; only then close the master
+	// (closing early races the copy goroutine and drops output).
+	select {
+	case <-copyDone:
+	case <-time.After(2 * time.Second):
+		_ = ptmx.Close()
+		<-copyDone
+	}
 	return waitErr
 }
 

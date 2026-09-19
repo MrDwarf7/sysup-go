@@ -94,8 +94,8 @@ func TestProgramLoadDirLexicalNotNumeric(t *testing.T) {
 
 func TestProgramLoadDuplicates(t *testing.T) {
 	t.Parallel()
-	pathA := program.DirName + "/10-a.toml"
-	pathB := program.DirName + "/20-b.toml"
+	// Match basenames only: disk backend uses OS separators (Windows
+	// `\`), mem backend keeps slash paths from path.Join.
 	cases := []string{"dup-names", "dup-aliases"}
 	for _, tree := range cases {
 		for _, backend := range ioBackends() {
@@ -106,8 +106,8 @@ func TestProgramLoadDuplicates(t *testing.T) {
 					t.Fatal("expected error")
 				}
 				msg := err.Error()
-				if !strings.Contains(msg, pathA) || !strings.Contains(msg, pathB) {
-					t.Errorf("Error() = %q, want both paths", msg)
+				if !strings.Contains(msg, "10-a.toml") || !strings.Contains(msg, "20-b.toml") {
+					t.Errorf("Error() = %q, want both source basenames", msg)
 				}
 			})
 		}
