@@ -21,7 +21,7 @@ bin_dbg := bindir / "sysup-dbg"
 bin_rel := bindir / "sysup"
 bin_expr := bindir / "sysup-expr"
 pkg := "./..."
-testpkg := "./tests"
+testpkg := "./internal/... ./tests"
 coverprofile := bindir / "coverage.out"
 ldflags_release := "-s -w -buildid="
 # -N -l: no optimize / no inline (debuggable). checkptr is on with -race.

@@ -77,10 +77,12 @@ gates on top of `just check` / `just t`.
 - One package per directory. Package name = directory name, short,
   lowercase, no underscores, no stutter (`config.Load` not
   `config.LoadConfig` unless the extra word is required).
-- Tests live in `tests/` as `package tests` (black-box). Do not put
-  `*_test.go` next to source. `just test` runs `./tests` only.
+- Package unit tests: `*_test.go` beside the code under `internal/`
+  (external test package `foo_test` is fine). E2E / cross-package
+  suites stay in `tests/` as `package tests`.
 - TOML fixtures live in `tests/testdata/` (config + programs trees).
   Load tests run both an in-memory FS and real disk IO from those files.
+- `just test` runs `./internal/...` and `./tests`.
 
 ## Hard rules (this project)
 

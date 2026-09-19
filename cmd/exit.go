@@ -6,6 +6,7 @@ import (
 	"sysup-go/internal/mise"
 	"sysup-go/internal/program"
 	"sysup-go/internal/runner"
+	"sysup-go/internal/sudo"
 )
 
 // FlagError is a cobra flag-parse failure. SetFlagErrorFunc wraps
@@ -43,6 +44,9 @@ func ExitCode(err error) int {
 	}
 	if _, ok := errors.AsType[*mise.Error](err); ok {
 		return 5
+	}
+	if _, ok := errors.AsType[*sudo.Error](err); ok {
+		return 1
 	}
 	if _, ok := errors.AsType[*FlagError](err); ok {
 		return 2
