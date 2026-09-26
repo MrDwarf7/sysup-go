@@ -7,6 +7,7 @@ const (
 
 type Spec struct {
 	Name        string   `toml:"name"`
+	Enabled     bool     `toml:"enabled"`
 	Alias       string   `toml:"alias"`
 	Description string   `toml:"description"`
 	Optional    bool     `toml:"optional"`

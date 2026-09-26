@@ -69,11 +69,13 @@ Print one program per line, in order, to stdout. Format:
 
 ```
 p  pacman  Update official repository packages
--  rustup  Update rustup toolchains
+-  rustup  Update rustup toolchains  [disabled]
 ```
 
-Column 1 is alias or `-` if none. Stable, parseable, no decoration.
-`--skip` is allowed and filters the list (unknown skip => exit 3).
+Column 1 is alias or `-` if none. Stable, parseable, no decoration
+except the `[disabled]` suffix when `enabled = false`. On a TTY that
+line is also grey. `--skip` is allowed and filters the list (unknown
+skip => exit 3). Disabled programs stay in the list unless skipped.
 
 ## validate
 

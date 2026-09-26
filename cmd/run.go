@@ -49,8 +49,9 @@ func (a *app) runPlan(cmd *cobra.Command, _ []string) error {
 	childEnv := st.ChildEnv(os.Environ())
 
 	g := a.cfg.Retries
-	steps := make([]program.Runner, 0, len(specs))
-	for _, s := range specs {
+	runnable := program.Runnable(specs)
+	steps := make([]program.Runner, 0, len(runnable))
+	for _, s := range runnable {
 		steps = append(steps, program.Exec{
 			Spec:     s,
 			Stdout:   cmd.OutOrStdout(),

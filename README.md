@@ -54,6 +54,10 @@ description = "Update official repository packages"
 command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 ```
 
+`enabled` defaults to true. Set `enabled = false` to keep a program in
+`list` (marked `[disabled]`, grey on a TTY) without running it. That is
+not `--skip`: a disabled parent does not drop `name-*` children.
+
 ## Retries
 
 `[retries]` in `config.toml` is the global policy. The same table on a

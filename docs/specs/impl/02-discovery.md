@@ -32,6 +32,7 @@ package program
 
 type Spec struct {
     Name        string   `toml:"name"`
+    Enabled     bool     `toml:"enabled"`
     Alias       string   `toml:"alias"`
     Description string   `toml:"description"`
     Optional    bool     `toml:"optional"`
@@ -52,6 +53,7 @@ type SkipError struct {
 
 func Load(dir string) ([]Spec, error)
 func Filter(specs []Spec, skip []string) ([]Spec, error)
+func Runnable(specs []Spec) []Spec
 ```
 
 `Load(dir)` looks at `dir` (the sysup-go config dir, not a programs
@@ -80,6 +82,9 @@ Empty `programs/` directory (no `*.toml`): same error.
   paths. Empty alias is "no alias", not a token.
 - `command` required, len >= 1, every element non-empty.
 - `optional` and `parallel` default false.
+- `enabled` optional, default true. `false` stays in `Load` / `Filter`
+  / `list` (marked `[disabled]`). `Runnable` drops it from the plan.
+  Disabled parent does not drop `name-*` children (`--skip` still does).
 - `[retries] always` / `max_attempts` optional. 0 max is unset.
   Global `[retries].max_attempts` > 0 is a hard cap on the recipe.
 - No `kind` field. Presence of `kind` is an unknown-field error.
@@ -94,7 +99,9 @@ ASCII puts them.
 `Filter` applies `--skip`. Each token must match a `Name` or `Alias`.
 Unknown token => `SkipError{Token}` (cmd maps to exit 3 in 04).
 Matching is exact string, case-sensitive. Duplicates in `--skip` are
-fine (idempotent). Filter does not reorder.
+fine (idempotent). Filter does not reorder. Filter does not drop
+`enabled = false` specs; `list` still shows them. `Runnable` is the
+run-plan cut.
 
 Quirk: skipping a name also drops specs named `name-*`. Skipping
 `mirror` (or alias `m`) drops `mirror-stage` and friends so a split
@@ -117,6 +124,8 @@ the parent. The cut is `parent + "-"`; `mirrors` is not a child of
 | `Filter` by name and by alias | dropped from result, others kept |
 | `Filter` unknown token | `SkipError` |
 | `[[program]]` array of 2 in programs.toml | order preserved |
+| omitted `enabled` | `Enabled == true` |
+| `enabled = false` | still loaded; `Runnable` drops it |
 
 Use `t.TempDir()` trees. Do not read real XDG.
 

@@ -151,6 +151,26 @@ func specNames(specs []program.Spec) []string {
 	return names
 }
 
+func writeAppTree(t *testing.T, programs map[string]string) {
+	t.Helper()
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	dir := expectedAppDir(t, xdg)
+	progDir := filepath.Join(dir, program.DirName)
+	if err := os.MkdirAll(progDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[sudo]\nkeepalive = false\n\n[mise]\nwrap = false\n\n[cache]\nenabled = false\n"
+	if err := os.WriteFile(filepath.Join(dir, config.ConfigFileName), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range programs {
+		if err := os.WriteFile(filepath.Join(progDir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func discardLog() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }

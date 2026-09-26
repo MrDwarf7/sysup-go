@@ -17,6 +17,9 @@ config_env := if USE_USER_CONFIG != "" { "SYSUP_CONFIG=" + quote(user_config) } 
 config_flag := if USE_USER_CONFIG != "" { "--config=" + user_config } else { "" }
 
 bindir := "bin"
+
+# Where `install` drops the release binary. Override with SYSUP_BINDIR.
+user_bindir := env("SYSUP_BINDIR", home_dir / ".local" / "bin")
 bin_dbg := bindir / "sysup-dbg"
 bin_rel := bindir / "sysup"
 bin_expr := bindir / "sysup-expr"
@@ -124,6 +127,12 @@ run-release *args: build-release
 alias re := run-expr
 run-expr *args: build-expr
     {{ expr_env }} ./{{ bin_expr }} {{ args }}
+
+# build release then install it as ~/.local/bin/sysup (i)
+alias i := install
+install: build-release
+    install -Dm755 {{ bin_rel }} {{ user_bindir }}/sysup
+    @printf 'installed %s (%d bytes)\n' "{{ user_bindir }}/sysup" "$(stat -c%s {{ user_bindir }}/sysup)"
 
 # full pipeline (a): format -> check -> test -> debug+release
 alias a := all
