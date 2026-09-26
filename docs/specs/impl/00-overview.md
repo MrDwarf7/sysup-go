@@ -95,6 +95,7 @@ type Shutdown struct {
 // internal/program
 type Spec struct {
     Name        string
+    Enabled     bool // omitted TOML key => true
     Alias       string
     Description string
     Optional    bool

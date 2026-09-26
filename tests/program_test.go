@@ -2,6 +2,7 @@ package tests
 
 import (
 	"errors"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -183,6 +184,9 @@ func TestProgramLoadFileArrayOrder(t *testing.T) {
 			if specs[0].Optional || specs[0].Parallel {
 				t.Errorf("optional/parallel = %v/%v, want false/false", specs[0].Optional, specs[0].Parallel)
 			}
+			if !specs[0].Enabled {
+				t.Error("Enabled = false, want true when omitted")
+			}
 		})
 	}
 }
@@ -269,6 +273,90 @@ func TestProgramFilter(t *testing.T) {
 		}
 		if names := specNames(got); !slices.Equal(names, []string{"mirror"}) {
 			t.Errorf("names = %v, want [mirror]", names)
+		}
+	})
+}
+
+func TestProgramLoadEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("file array omitted true and false", func(t *testing.T) {
+		t.Parallel()
+		fsys := afero.NewMemMapFs()
+		body := "[[program]]\nname = \"omitted\"\ncommand = [\"true\"]\n\n" +
+			"[[program]]\nname = \"on\"\nenabled = true\ncommand = [\"true\"]\n\n" +
+			"[[program]]\nname = \"off\"\nenabled = false\nalias = \"x\"\ncommand = [\"true\"]\n"
+		if err := afero.WriteFile(fsys, program.FileName, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		specs, err := program.Load(fsys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := specNames(specs); !slices.Equal(got, []string{"omitted", "on", "off"}) {
+			t.Fatalf("names = %v, want [omitted on off]", got)
+		}
+		if !specs[0].Enabled || !specs[1].Enabled {
+			t.Errorf("omitted/on Enabled = %v/%v, want true/true", specs[0].Enabled, specs[1].Enabled)
+		}
+		if specs[2].Enabled {
+			t.Error("off Enabled = true, want false")
+		}
+		if got := specNames(program.Runnable(specs)); !slices.Equal(got, []string{"omitted", "on"}) {
+			t.Errorf("Runnable = %v, want [omitted on]", got)
+		}
+		kept, err := program.Filter(specs, []string{"x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := specNames(kept); !slices.Equal(got, []string{"omitted", "on"}) {
+			t.Errorf("Filter disabled alias = %v, want [omitted on]", got)
+		}
+	})
+
+	t.Run("dir file enabled false", func(t *testing.T) {
+		t.Parallel()
+		fsys := afero.NewMemMapFs()
+		if err := fsys.Mkdir(program.DirName, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		on := "name = \"on\"\ncommand = [\"true\"]\n"
+		off := "name = \"off\"\nenabled = false\ncommand = [\"true\"]\n"
+		if err := afero.WriteFile(fsys, path.Join(program.DirName, "10-on.toml"), []byte(on), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := afero.WriteFile(fsys, path.Join(program.DirName, "20-off.toml"), []byte(off), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		specs, err := program.Load(fsys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := specNames(specs); !slices.Equal(got, []string{"on", "off"}) {
+			t.Fatalf("names = %v, want [on off]", got)
+		}
+		if !specs[0].Enabled || specs[1].Enabled {
+			t.Errorf("Enabled = %v/%v, want true/false", specs[0].Enabled, specs[1].Enabled)
+		}
+	})
+
+	t.Run("disabled parent does not drop name- children", func(t *testing.T) {
+		t.Parallel()
+		fsys := afero.NewMemMapFs()
+		body := "[[program]]\nname = \"mirror\"\nenabled = false\ncommand = [\"true\"]\n\n" +
+			"[[program]]\nname = \"mirror-stage\"\ncommand = [\"true\"]\n"
+		if err := afero.WriteFile(fsys, program.FileName, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		specs, err := program.Load(fsys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := specNames(specs); !slices.Equal(got, []string{"mirror", "mirror-stage"}) {
+			t.Fatalf("Load names = %v", got)
+		}
+		if got := specNames(program.Runnable(specs)); !slices.Equal(got, []string{"mirror-stage"}) {
+			t.Errorf("Runnable = %v, want [mirror-stage]", got)
 		}
 	})
 }

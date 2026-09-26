@@ -3,10 +3,12 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/afero"
 
 	"sysup-go/internal/config"
+	"sysup-go/internal/logfmt"
 	"sysup-go/internal/program"
 )
 
@@ -26,12 +28,23 @@ func (a *app) loadSpecs() ([]program.Spec, error) {
 }
 
 func printList(w io.Writer, specs []program.Spec) error {
+	color := false
+	if f, ok := w.(*os.File); ok {
+		color = logfmt.ColorTTY(f)
+	}
 	for _, s := range specs {
 		alias := s.Alias
 		if alias == "" {
 			alias = "-"
 		}
-		if _, err := fmt.Fprintf(w, "%s  %s  %s\n", alias, s.Name, s.Description); err != nil {
+		line := fmt.Sprintf("%s  %s  %s", alias, s.Name, s.Description)
+		if !s.Enabled {
+			line += "  [disabled]"
+			if color {
+				line = "\x1b[90m" + line + "\x1b[0m"
+			}
+		}
+		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 	}

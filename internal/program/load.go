@@ -15,7 +15,38 @@ import (
 var errNothingToRun = errors.New("nothing to run")
 
 type fileDoc struct {
-	Program []Spec `toml:"program"`
+	Program []specFile `toml:"program"`
+}
+
+// specFile is the TOML shape of Spec. Enabled is a pointer so an
+// omitted key stays nil and becomes true on Spec.
+type specFile struct {
+	Name        string   `toml:"name"`
+	Enabled     *bool    `toml:"enabled"`
+	Alias       string   `toml:"alias"`
+	Description string   `toml:"description"`
+	Optional    bool     `toml:"optional"`
+	Parallel    bool     `toml:"parallel"`
+	Command     []string `toml:"command"`
+	Retries     Retries  `toml:"retries"`
+}
+
+func (f specFile) spec(src string) Spec {
+	s := Spec{
+		Name:        f.Name,
+		Enabled:     true,
+		Alias:       f.Alias,
+		Description: f.Description,
+		Optional:    f.Optional,
+		Parallel:    f.Parallel,
+		Command:     f.Command,
+		Retries:     f.Retries,
+		Source:      src,
+	}
+	if f.Enabled != nil {
+		s.Enabled = *f.Enabled
+	}
+	return s
 }
 
 func Load(fsys afero.Fs) ([]Spec, error) {
@@ -67,6 +98,18 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	return out, nil
 }
 
+// Runnable returns specs with Enabled true. Filter does not drop
+// disabled specs (list still shows them). Order preserved.
+func Runnable(specs []Spec) []Spec {
+	out := make([]Spec, 0, len(specs))
+	for _, s := range specs {
+		if s.Enabled {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func skipSet(specs []Spec, skip []string) (map[string]struct{}, error) {
 	known := make(map[string]struct{}, len(specs)*2)
 	for _, s := range specs {
@@ -115,16 +158,18 @@ func loadFile(fsys afero.Fs, src string) ([]Spec, error) {
 	if len(doc.Program) == 0 {
 		return nil, &Error{Op: "discover", Path: src, Err: errNothingToRun}
 	}
-	for i := range doc.Program {
-		doc.Program[i].Source = src
-		if err := validate(doc.Program[i]); err != nil {
+	specs := make([]Spec, 0, len(doc.Program))
+	for _, raw := range doc.Program {
+		s := raw.spec(src)
+		if err := validate(s); err != nil {
 			return nil, err
 		}
+		specs = append(specs, s)
 	}
-	if err := unique(doc.Program); err != nil {
+	if err := unique(specs); err != nil {
 		return nil, err
 	}
-	return doc.Program, nil
+	return specs, nil
 }
 
 func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
@@ -153,15 +198,15 @@ func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
 }
 
 func loadOne(fsys afero.Fs, src string) (Spec, error) {
-	var spec Spec
-	if err := decode(fsys, src, &spec); err != nil {
+	var raw specFile
+	if err := decode(fsys, src, &raw); err != nil {
 		return Spec{}, err
 	}
-	spec.Source = src
-	if err := validate(spec); err != nil {
+	s := raw.spec(src)
+	if err := validate(s); err != nil {
 		return Spec{}, err
 	}
-	return spec, nil
+	return s, nil
 }
 
 func decode(fsys afero.Fs, src string, v any) error {

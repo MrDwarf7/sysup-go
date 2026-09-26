@@ -110,7 +110,8 @@ defer stop()
 
 `cmd.Context()` is cobra's context. Derive NotifyContext from it.
 
-Load config, load programs, filter skip, build `[]Exec`, `RunAll`.
+Load config, load programs, filter skip, drop `enabled = false`
+(`program.Runnable`), build `[]Exec`, `RunAll`.
 Map `StepError` to exit 5 in `exitCode`.
 
 ## Tests
