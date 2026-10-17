@@ -203,7 +203,8 @@ command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 | `retries`     | Optional `{ always, max_attempts }`. Global `[retries].max_attempts` > 0 is a hard cap.                    |
 
 There is no `kind`, no `skip` letter derived from the first character of
-`name`, no reserved `name`. `--skip` matches `name` or `alias`. Skipping
+`name`, no reserved `name`. `--skip` matches `name` or `alias`; tokens
+are `path.Match` globs (`-s 'm*'`), a plain token is exact. Skipping
 a name also drops later programs named `name-*` (so `-s m` skips
 `mirror` and `mirror-stage` / `mirror-backup` / `mirror-swap`). Skipping
 only the child does not skip the parent.

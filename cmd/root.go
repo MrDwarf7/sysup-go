@@ -46,7 +46,8 @@ func NewRoot() *cobra.Command {
 		Long: `Runs user-defined programs from ` + filepath.Join("$XDG_CONFIG_HOME", config.AppName) +
 			` (` + program.FileName + ` or ` + program.DirName + `/*.toml).
 
--s / --skip drops programs by name or alias.
+-s / --skip drops programs by name or alias. Tokens are globs
+(quote them: -s 'm*'); a plain token is an exact match.
 Skipping a name also drops later programs named name-*
 (so -s m skips mirror and mirror-stage / mirror-backup / mirror-swap).
 -c / --continue accumulates program errors instead of stopping.`,
@@ -69,7 +70,7 @@ func (a *app) bindFlags(root *cobra.Command) {
 
 	pf.String("config", "", configHelp)
 	pf.Bool("generate-config", false, "Write default "+config.ConfigFileName+" and exit")
-	pf.StringSliceP("skip", "s", nil, "Skip programs by name or alias (also drops name-* children)")
+	pf.StringSliceP("skip", "s", nil, "Skip programs by name or alias, glob ok: 'm*' (also drops name-* children)")
 	pf.BoolP("continue", "c", false, "Continue after program errors")
 	pf.Bool("no-cache", false, "Skip end-of-run cache sweep")
 	pf.BoolP("shutdown", "d", false, "Shut down after a clean run")

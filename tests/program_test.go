@@ -254,6 +254,29 @@ func TestProgramFilter(t *testing.T) {
 		}
 	})
 
+	t.Run("glob tokens", func(t *testing.T) {
+		globbed := []program.Spec{
+			{Name: "mirror", Alias: "m", Command: []string{"rate-mirrors"}},
+			{Name: "mise", Alias: "x", Command: []string{"mise"}},
+			{Name: "pacman", Alias: "p", Command: []string{"pacman"}},
+			{Name: "hx", Alias: "h", Command: []string{"hx"}},
+		}
+		got, err := program.Filter(globbed, []string{"m*", "h"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if names := specNames(got); !slices.Equal(names, []string{"pacman"}) {
+			t.Errorf("names = %v, want [pacman]", names)
+		}
+		for _, bad := range []string{"z*", "["} {
+			_, err := program.Filter(globbed, []string{bad})
+			var se *program.SkipError
+			if !errors.As(err, &se) || se.Token != bad {
+				t.Errorf("Filter(%q) = %v, want SkipError{%q}", bad, err, bad)
+			}
+		}
+	})
+
 	t.Run("empty alias is not a skip token", func(t *testing.T) {
 		withBlank := []program.Spec{
 			{Name: "mirror", Command: []string{"rate-mirrors"}},

@@ -91,8 +91,10 @@ file off.
 
 ## Skip
 
-`-s` / `--skip` matches a program `name` or `alias` (exact, case-sensitive).
-Unknown tokens exit 3.
+`-s` / `--skip` matches a program `name` or `alias` (case-sensitive).
+Tokens are globs (`path.Match`: `*`, `?`, `[a-z]`), so quote them for
+the shell: `-s 'm*'`. A plain token is an exact match. A token that
+matches nothing (or is a bad pattern) exits 3.
 
 Quirk: skipping a name also drops later programs named `name-*`.
 Recipes that are one logical step split across files (for example

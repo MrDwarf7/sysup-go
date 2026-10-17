@@ -96,9 +96,10 @@ ASCII puts them.
 
 ## Filter
 
-`Filter` applies `--skip`. Each token must match a `Name` or `Alias`.
-Unknown token => `SkipError{Token}` (cmd maps to exit 3 in 04).
-Matching is exact string, case-sensitive. Duplicates in `--skip` are
+`Filter` applies `--skip`. Each token is a `path.Match` glob that must
+match at least one `Name` or `Alias` (empty aliases never match).
+No match or bad pattern => `SkipError{Token}` (cmd maps to exit 3 in
+04). A plain token is an exact, case-sensitive match. Duplicates in `--skip` are
 fine (idempotent). Filter does not reorder. Filter does not drop
 `enabled = false` specs; `list` still shows them. `Runnable` is the
 run-plan cut.

@@ -68,8 +68,10 @@ func Load(fsys afero.Fs) ([]Spec, error) {
 	return nil, &Error{Op: "discover", Path: FileName, Err: errNothingToRun}
 }
 
-// Filter drops specs whose Name or Alias is in skip. Unknown tokens
-// return SkipError. Matching is exact and case-sensitive.
+// Filter drops specs whose Name or Alias matches a skip token. Tokens
+// are path.Match globs ("m*", "mirror-?"); a plain token is an exact,
+// case-sensitive match. A token that matches nothing, or is a bad
+// pattern, returns SkipError.
 //
 // Quirk: skipping a name also drops specs named name-*. Skipping
 // "mirror" (or its alias) drops mirror-stage, mirror-backup, and
@@ -80,11 +82,10 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	if len(skip) == 0 {
 		return specs, nil
 	}
-	drop, err := skipSet(specs, skip)
+	dropped, err := droppedNames(specs, skip)
 	if err != nil {
 		return nil, err
 	}
-	dropped := droppedNames(specs, drop)
 	out := make([]Spec, 0, len(specs))
 	for _, s := range specs {
 		if _, ok := dropped[s.Name]; ok {
@@ -110,33 +111,30 @@ func Runnable(specs []Spec) []Spec {
 	return out
 }
 
-func skipSet(specs []Spec, skip []string) (map[string]struct{}, error) {
-	known := make(map[string]struct{}, len(specs)*2)
-	for _, s := range specs {
-		known[s.Name] = struct{}{}
-		known[s.Alias] = struct{}{}
-	}
-	delete(known, "")
-	drop := make(map[string]struct{}, len(skip))
+// droppedNames returns the Name of every spec whose Name or Alias
+// matches a skip token. Empty aliases never match.
+func droppedNames(specs []Spec, skip []string) (map[string]struct{}, error) {
+	dropped := make(map[string]struct{}, len(specs))
 	for _, token := range skip {
-		if _, ok := known[token]; !ok {
+		hit := false
+		for _, s := range specs {
+			if matchToken(token, s.Name) || (s.Alias != "" && matchToken(token, s.Alias)) {
+				dropped[s.Name] = struct{}{}
+				hit = true
+			}
+		}
+		if !hit {
 			return nil, &SkipError{Token: token}
 		}
-		drop[token] = struct{}{}
 	}
-	return drop, nil
+	return dropped, nil
 }
 
-func droppedNames(specs []Spec, drop map[string]struct{}) map[string]struct{} {
-	dropped := make(map[string]struct{}, len(specs))
-	for _, s := range specs {
-		_, skipName := drop[s.Name]
-		_, skipAlias := drop[s.Alias]
-		if skipName || skipAlias {
-			dropped[s.Name] = struct{}{}
-		}
-	}
-	return dropped
+// matchToken reports whether token globs s. A malformed pattern
+// matches nothing, so it surfaces as an unknown skip token.
+func matchToken(token, s string) bool {
+	ok, err := path.Match(token, s)
+	return err == nil && ok
 }
 
 // childOfDropped reports whether name is parent + "-" + rest for any
