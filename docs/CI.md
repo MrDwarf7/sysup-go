@@ -11,7 +11,7 @@ duplicated in shell.
 
 | Tool          | Pin file                                          | Composite input                                 | Bump procedure                                                               |
 | ------------- | ------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
-| Go            | `go.mod` (`go 1.27.0`) + `go.env` (`GOTOOLCHAIN`) | `setup-go` `go-version-file` (default `go.mod`) | Edit `go.mod` and `go.env`, run `just t`                                     |
+| Go            | `go.mod` (`go 1.27.2`) + `go.env` (`GOTOOLCHAIN`) | `setup-go` `go-version-file` (default `go.mod`) | Edit `go.mod` and `go.env`, run `just t`                                     |
 | just          | `setup-go` `inputs.tools` (`just`)                | `setup-go`                                      | Edit `.github/actions/setup-go/action.yml`                                   |
 | golangci-lint | `go.mod` `tool` directive                         | `just check`                                    | `go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest` |
 
