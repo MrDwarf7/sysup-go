@@ -54,6 +54,7 @@ Canonical recipes (alias in parens):
 - `just run` (`r`) - debug build, then `bin/sysup-dbg` with `GORACE=halt_on_error=1`.
 - `just run-release` (`rr`) - release build, then `bin/sysup`.
 - `just run-expr` (`re`) - expr build, then `bin/sysup-expr` with `GOGC=off` + clobber/efence/invalidptr.
+- `just install` (`i`) - release build, then install `sysup` into `~/.local/bin` (override with `SYSUP_BINDIR`).
 - `just all` (`a`) - `format -> check -> test -> build-all`.
 - `just reset` (no alias) - `clean -> all`.
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"sysup-go/cmd"
 	"sysup-go/internal/config"
@@ -119,4 +120,70 @@ func TestCobraMachineryDoesNotWriteConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListMarksDisabled(t *testing.T) {
+	writeAppTree(t, map[string]string{
+		"10-on.toml":  "name = \"on\"\nalias = \"o\"\ndescription = \"runs\"\ncommand = [\"true\"]\n",
+		"20-off.toml": "name = \"off\"\nalias = \"x\"\ndescription = \"parked\"\nenabled = false\ncommand = [\"false\"]\n",
+	})
+	out, err := execRoot(t, "--log-file", "-", "list")
+	if err != nil {
+		t.Fatalf("list: %v\n%s", err, out)
+	}
+	want := "o  on  runs\nx  off  parked  [disabled]\n"
+	if out != want {
+		t.Fatalf("list output:\n%q\nwant:\n%q", out, want)
+	}
+}
+
+func TestListSkipDisabled(t *testing.T) {
+	writeAppTree(t, map[string]string{
+		"10-on.toml":  "name = \"on\"\nalias = \"o\"\ndescription = \"runs\"\ncommand = [\"true\"]\n",
+		"20-off.toml": "name = \"off\"\nalias = \"x\"\ndescription = \"parked\"\nenabled = false\ncommand = [\"false\"]\n",
+	})
+	out, err := execRoot(t, "--log-file", "-", "-s", "x", "list")
+	if err != nil {
+		t.Fatalf("list -s x: %v\n%s", err, out)
+	}
+	want := "o  on  runs\n"
+	if out != want {
+		t.Fatalf("list -s x output:\n%q\nwant:\n%q", out, want)
+	}
+}
+
+func TestRunIgnoresDisabled(t *testing.T) {
+	writeAppTree(t, map[string]string{
+		"10-off.toml": "name = \"off\"\nenabled = false\ncommand = [\"false\"]\n",
+		"20-on.toml":  "name = \"on\"\ncommand = [\"echo\", \"ran\"]\n",
+	})
+	out, err := execRoot(t, "--log-file", "-")
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "ran") {
+		t.Fatalf("enabled step did not run:\n%s", out)
+	}
+}
+
+func TestRunAllDisabled(t *testing.T) {
+	writeAppTree(t, map[string]string{
+		"10-off.toml": "name = \"off\"\nenabled = false\ncommand = [\"false\"]\n",
+	})
+	out, err := execRoot(t, "--log-file", "-")
+	if err != nil {
+		t.Fatalf("run all-disabled: %v\n%s", err, out)
+	}
+}
+
+func execRoot(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	viper.Reset()
+	root := cmd.NewRoot()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(args)
+	err := root.Execute()
+	return out.String(), err
 }

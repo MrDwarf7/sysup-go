@@ -15,7 +15,38 @@ import (
 var errNothingToRun = errors.New("nothing to run")
 
 type fileDoc struct {
-	Program []Spec `toml:"program"`
+	Program []specFile `toml:"program"`
+}
+
+// specFile is the TOML shape of Spec. Enabled is a pointer so an
+// omitted key stays nil and becomes true on Spec.
+type specFile struct {
+	Name        string   `toml:"name"`
+	Enabled     *bool    `toml:"enabled"`
+	Alias       string   `toml:"alias"`
+	Description string   `toml:"description"`
+	Optional    bool     `toml:"optional"`
+	Parallel    bool     `toml:"parallel"`
+	Command     []string `toml:"command"`
+	Retries     Retries  `toml:"retries"`
+}
+
+func (f specFile) spec(src string) Spec {
+	s := Spec{
+		Name:        f.Name,
+		Enabled:     true,
+		Alias:       f.Alias,
+		Description: f.Description,
+		Optional:    f.Optional,
+		Parallel:    f.Parallel,
+		Command:     f.Command,
+		Retries:     f.Retries,
+		Source:      src,
+	}
+	if f.Enabled != nil {
+		s.Enabled = *f.Enabled
+	}
+	return s
 }
 
 func Load(fsys afero.Fs) ([]Spec, error) {
@@ -37,8 +68,10 @@ func Load(fsys afero.Fs) ([]Spec, error) {
 	return nil, &Error{Op: "discover", Path: FileName, Err: errNothingToRun}
 }
 
-// Filter drops specs whose Name or Alias is in skip. Unknown tokens
-// return SkipError. Matching is exact and case-sensitive.
+// Filter drops specs whose Name or Alias matches a skip token. Tokens
+// are path.Match globs ("m*", "mirror-?"); a plain token is an exact,
+// case-sensitive match. A token that matches nothing, or is a bad
+// pattern, returns SkipError.
 //
 // Quirk: skipping a name also drops specs named name-*. Skipping
 // "mirror" (or its alias) drops mirror-stage, mirror-backup, and
@@ -49,11 +82,10 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	if len(skip) == 0 {
 		return specs, nil
 	}
-	drop, err := skipSet(specs, skip)
+	dropped, err := droppedNames(specs, skip)
 	if err != nil {
 		return nil, err
 	}
-	dropped := droppedNames(specs, drop)
 	out := make([]Spec, 0, len(specs))
 	for _, s := range specs {
 		if _, ok := dropped[s.Name]; ok {
@@ -67,33 +99,42 @@ func Filter(specs []Spec, skip []string) ([]Spec, error) {
 	return out, nil
 }
 
-func skipSet(specs []Spec, skip []string) (map[string]struct{}, error) {
-	known := make(map[string]struct{}, len(specs)*2)
+// Runnable returns specs with Enabled true. Filter does not drop
+// disabled specs (list still shows them). Order preserved.
+func Runnable(specs []Spec) []Spec {
+	out := make([]Spec, 0, len(specs))
 	for _, s := range specs {
-		known[s.Name] = struct{}{}
-		known[s.Alias] = struct{}{}
-	}
-	delete(known, "")
-	drop := make(map[string]struct{}, len(skip))
-	for _, token := range skip {
-		if _, ok := known[token]; !ok {
-			return nil, &SkipError{Token: token}
+		if s.Enabled {
+			out = append(out, s)
 		}
-		drop[token] = struct{}{}
 	}
-	return drop, nil
+	return out
 }
 
-func droppedNames(specs []Spec, drop map[string]struct{}) map[string]struct{} {
+// droppedNames returns the Name of every spec whose Name or Alias
+// matches a skip token. Empty aliases never match.
+func droppedNames(specs []Spec, skip []string) (map[string]struct{}, error) {
 	dropped := make(map[string]struct{}, len(specs))
-	for _, s := range specs {
-		_, skipName := drop[s.Name]
-		_, skipAlias := drop[s.Alias]
-		if skipName || skipAlias {
-			dropped[s.Name] = struct{}{}
+	for _, token := range skip {
+		hit := false
+		for _, s := range specs {
+			if matchToken(token, s.Name) || (s.Alias != "" && matchToken(token, s.Alias)) {
+				dropped[s.Name] = struct{}{}
+				hit = true
+			}
+		}
+		if !hit {
+			return nil, &SkipError{Token: token}
 		}
 	}
-	return dropped
+	return dropped, nil
+}
+
+// matchToken reports whether token globs s. A malformed pattern
+// matches nothing, so it surfaces as an unknown skip token.
+func matchToken(token, s string) bool {
+	ok, err := path.Match(token, s)
+	return err == nil && ok
 }
 
 // childOfDropped reports whether name is parent + "-" + rest for any
@@ -115,16 +156,18 @@ func loadFile(fsys afero.Fs, src string) ([]Spec, error) {
 	if len(doc.Program) == 0 {
 		return nil, &Error{Op: "discover", Path: src, Err: errNothingToRun}
 	}
-	for i := range doc.Program {
-		doc.Program[i].Source = src
-		if err := validate(doc.Program[i]); err != nil {
+	specs := make([]Spec, 0, len(doc.Program))
+	for _, raw := range doc.Program {
+		s := raw.spec(src)
+		if err := validate(s); err != nil {
 			return nil, err
 		}
+		specs = append(specs, s)
 	}
-	if err := unique(doc.Program); err != nil {
+	if err := unique(specs); err != nil {
 		return nil, err
 	}
-	return doc.Program, nil
+	return specs, nil
 }
 
 func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
@@ -153,15 +196,15 @@ func loadDir(fsys afero.Fs, dir string) ([]Spec, error) {
 }
 
 func loadOne(fsys afero.Fs, src string) (Spec, error) {
-	var spec Spec
-	if err := decode(fsys, src, &spec); err != nil {
+	var raw specFile
+	if err := decode(fsys, src, &raw); err != nil {
 		return Spec{}, err
 	}
-	spec.Source = src
-	if err := validate(spec); err != nil {
+	s := raw.spec(src)
+	if err := validate(s); err != nil {
 		return Spec{}, err
 	}
-	return spec, nil
+	return s, nil
 }
 
 func decode(fsys afero.Fs, src string, v any) error {

@@ -54,6 +54,10 @@ description = "Update official repository packages"
 command = ["sudo", "pacman", "-Syyu", "--needed", "--noconfirm"]
 ```
 
+`enabled` defaults to true. Set `enabled = false` to keep a program in
+`list` (marked `[disabled]`, grey on a TTY) without running it. That is
+not `--skip`: a disabled parent does not drop `name-*` children.
+
 ## Retries
 
 `[retries]` in `config.toml` is the global policy. The same table on a
@@ -87,8 +91,10 @@ file off.
 
 ## Skip
 
-`-s` / `--skip` matches a program `name` or `alias` (exact, case-sensitive).
-Unknown tokens exit 3.
+`-s` / `--skip` matches a program `name` or `alias` (case-sensitive).
+Tokens are globs (`path.Match`: `*`, `?`, `[a-z]`), so quote them for
+the shell: `-s 'm*'`. A plain token is an exact match. A token that
+matches nothing (or is a bad pattern) exits 3.
 
 Quirk: skipping a name also drops later programs named `name-*`.
 Recipes that are one logical step split across files (for example
