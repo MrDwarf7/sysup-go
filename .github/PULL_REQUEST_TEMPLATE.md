@@ -20,13 +20,17 @@
 
 ... Your description here ...
 
+<!-- STAKK_BODY_START -->
+<!-- STAKK_BODY_END -->
+
 ## Type of change
 
 > Please delete options that are not relevant.
 
 - [ ] - Bug fix (non-breaking change which fixes an issue)
 - [ ] - New feature (non-breaking change which adds functionality)
-- [ ] - Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] - Breaking change (fix or feature that would cause existing functionality to not work as
+      expected)
 - [ ] - Documentation update
 
 ## Checklist
@@ -40,8 +44,8 @@
 1. Conformity
 
 - [ ] - My code follows the style guidelines of this project
-- [ ] - Code is formatted with `just format`
-- [ ] - `just check` is clean (golangci-lint `default: all`)
+- [ ] - Code is formatted with the project's formatter
+- [ ] - No linter warnings
 
 2. Best-Effort
 
@@ -52,17 +56,16 @@
 3. Documentation
 
 - [ ] - Any documentation that relates to this PR has been updated
-    or will be updated in a PR (Link here: )(if applicable)
+  or will be updated in a PR (Link here: )(if applicable)
 
 4. Tests
 
 - [ ] - I have added tests that prove my fix is effective or that my feature works
-- [ ] - New and existing unit tests pass locally with `just t`
+- [ ] - New and existing unit tests pass locally with my changes
 
 5. Dependencies
 
 - [ ] - Any dependent changes have been merged and published in downstream modules
-- [ ] - I did not delete rules from `.golangci.yml` (comment/uncomment only, with an explicit yes)
 
 </p>
 </details>
