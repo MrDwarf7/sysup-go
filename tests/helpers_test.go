@@ -155,6 +155,9 @@ func writeAppTree(t *testing.T, programs map[string]string) {
 	t.Helper()
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
+	// Windows UserConfigDir reads %AppData%; without this every test
+	// shares the runner's real profile dir and sees earlier tests' files.
+	t.Setenv("AppData", xdg)
 	dir := expectedAppDir(t, xdg)
 	progDir := filepath.Join(dir, program.DirName)
 	if err := os.MkdirAll(progDir, 0o755); err != nil {
