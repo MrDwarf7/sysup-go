@@ -5,17 +5,17 @@ keywords: [impl, continue, errors, skip, hard-fail]
 order: 27
 ---
 
-# 07 continue
+## 07 continue
 
 Default remains hard fail. `-c` / `--continue` runs the rest of the
 plan after a program error and reports every failure at the end.
 
-## Depends on
+### Depends on
 
 05. Shutdown gating is specified here but **not implemented** until
 11; do not shut down in this milestone.
 
-## Files
+### Files
 
 - Modify: `internal/runner/run.go` (`RunAll` grows `continueOnErr bool`)
 - Modify: `internal/runner/error.go` (`Errors` multi-error)
@@ -23,7 +23,7 @@ plan after a program error and reports every failure at the end.
 - Modify: `cmd/root.go` pass `Options.Continue`
 - Modify: `cmd/exit.go` map `runner.Errors` / `StepError` to 5
 
-## Types
+### Types
 
 ```go
 package runner
@@ -55,7 +55,7 @@ PreRun/Run/PostRun: a PreRun failure counts as that step failed;
 do not call Run/PostRun for that step. Continue to the next step
 when `-c`.
 
-## Output
+### Output
 
 cmd prints `err.Error()` on stderr when `RunAll` returns. slog
 already logged each failure at error as it happened (`step failed`
@@ -64,21 +64,21 @@ the summary.
 
 Exit code 5 if any step failed, including under `-c`.
 
-## Tests
+### Tests
 
-| Case | Expect |
-| --- | --- |
-| hard fail, step 2 errors | step 3 not run |
+| Case                               | Expect                              |
+| ---------------------------------- | ----------------------------------- |
+| hard fail, step 2 errors           | step 3 not run                      |
 | continue, step 2 errors, step 3 ok | all run, `*Errors` len 1, name of 2 |
-| continue, two failures | len 2, both names |
-| continue, all ok | nil |
-| continue, ctx cancel after step 1 | step 2+ not started |
+| continue, two failures             | len 2, both names                   |
+| continue, all ok                   | nil                                 |
+| continue, ctx cancel after step 1  | step 2+ not started                 |
 
-## Out of scope
+### Out of scope
 
 Parallel waves (08). Shutdown (11). Cache still not wired.
 
-## Done when
+### Done when
 
 `go test ./internal/runner/` covers both modes.
 `sysup-go -c` with a failing `false` program and a later `true`

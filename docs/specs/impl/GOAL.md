@@ -5,11 +5,11 @@ keywords: [goal, prompt, subagents, parallel]
 order: 19
 ---
 
-# Goal prompt
+## Goal prompt
 
 Copy the block that matches the slice. Do not paste chat history.
 
-## Standing rules (every goal)
+### Standing rules (every goal)
 
 - Colocated `jj` repo: `jj` only, never raw `git`.
 - Read `docs/INDEX.md`, then `AGENTS.md`, then **only** the spec
@@ -27,7 +27,7 @@ Copy the block that matches the slice. Do not paste chat history.
 - Commit each milestone with `jj commit` conventional commits when
   that milestone is green, unless the user said otherwise.
 
-## Parallelism
+### Parallelism
 
 Go packages under `internal/<name>/` are isolated. Independent
 packages in the same slice run as **parallel sub-agents**, one
@@ -38,16 +38,16 @@ Do **not** parallelise a package with its `Needs` column still
 unimplemented. `cmd/` is never a child's job if two children would
 edit `cmd/root.go`.
 
-| Slice | Parallel children | Then parent |
-| --- | --- | --- |
+| Slice     | Parallel children                                                                   | Then parent                                                          |
+| --------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | A (01-05) | 01 `internal/config`, 02 `internal/program` (load/spec only), 03 `internal/resolve` | 04 `cmd/` then 05 `internal/runner` + `program/exec.go` + `cmd` RunE |
-| B (06) | none | `internal/sudo` + `cmd` hook |
-| C (07-08) | none (08 needs 07's `RunAll` shape) | runner continue, then waves |
-| D (09-11) | 09 `internal/mise`, 10 `internal/cache`, 11 `internal/shutdown` (packages only) | `cmd` compose wraps |
+| B (06)    | none                                                                                | `internal/sudo` + `cmd` hook                                         |
+| C (07-08) | none (08 needs 07's `RunAll` shape)                                                 | runner continue, then waves                                          |
+| D (09-11) | 09 `internal/mise`, 10 `internal/cache`, 11 `internal/shutdown` (packages only)     | `cmd` compose wraps                                                  |
 
-## Slice A -- paste this
+### Slice A -- paste this
 
-```
+```text
 Goal: implement sysup-go milestones 01-05.
 
 Read, in order:
@@ -83,9 +83,9 @@ Locks:
 - Root main.go stays at repo root.
 ```
 
-## Later slices -- paste and fill ID
+### Later slices -- paste and fill ID
 
-```
+```text
 Goal: implement sysup-go milestone NN.
 
 Read:

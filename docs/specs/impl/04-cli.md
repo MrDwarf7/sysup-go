@@ -5,16 +5,16 @@ keywords: [impl, cobra, flags, list, validate, skip, continue]
 order: 24
 ---
 
-# 04 cli
+## 04 cli
 
 Wire cobra to 01-03. Root still does not run programs (that is 05).
 `list` and `validate` become usable.
 
-## Depends on
+### Depends on
 
 01, 02, 03.
 
-## Files
+### Files
 
 - Modify: `cmd/root.go` (flags, short/long text, `initConfig`, logger,
   exit mapping)
@@ -25,7 +25,7 @@ Wire cobra to 01-03. Root still does not run programs (that is 05).
 
 Run, from repo root:
 
-```
+```text
 cobra-cli add list
 cobra-cli add validate
 ```
@@ -35,19 +35,19 @@ registration boilerplate if `cobra-cli` is available; if it is not,
 copy the same `init()` + `rootCmd.AddCommand` pattern cobra-cli
 emits.
 
-## Flags (root, persistent where listed)
+### Flags (root, persistent where listed)
 
-| Flag | Cobra | Default |
-| --- | --- | --- |
-| `--config` | `String` (already exists) | "" |
-| `--generate-config` | `Bool` | false |
-| `-s, --skip` | `StringSliceP` | nil |
-| `-c, --continue` | `BoolP` | false |
-| `--no-cache` | `Bool` | false |
-| `-d, --shutdown` | `BoolP` | false |
-| `--force-shutdown` | `Bool` (long only) | false |
-| `--log-level` | `String` (`info` / `debug` / `warn` / `error`) | `info` |
-| `--log-file` | `String` | `os.TempDir()/sysup.log` (`-` or empty disables) |
+| Flag                | Cobra                                          | Default                                          |
+| ------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| `--config`          | `String` (already exists)                      | ""                                               |
+| `--generate-config` | `Bool`                                         | false                                            |
+| `-s, --skip`        | `StringSliceP`                                 | nil                                              |
+| `-c, --continue`    | `BoolP`                                        | false                                            |
+| `--no-cache`        | `Bool`                                         | false                                            |
+| `-d, --shutdown`    | `BoolP`                                        | false                                            |
+| `--force-shutdown`  | `Bool` (long only)                             | false                                            |
+| `--log-level`       | `String` (`info` / `debug` / `warn` / `error`) | `info`                                           |
+| `--log-file`        | `String`                                       | `os.TempDir()/sysup.log` (`-` or empty disables) |
 
 `--force-shutdown` is **not** mutually exclusive with `-d`. Force
 implies shutdown. Do not `MarkFlagsMutuallyExclusive` those two.
@@ -62,12 +62,12 @@ return a clear "run not implemented" error **or** leave `RunE` unset
 so cobra shows help. Prefer **help on no-op** (no `Run`) until 05
 attaches `RunE`. Do not fake a successful update.
 
-## list
+### list
 
 Load config dir (from `--config` or default Dir). `program.Load`.
 Print one program per line, in order, to stdout. Format:
 
-```
+```text
 p  pacman  Update official repository packages
 -  rustup  Update rustup toolchains  [disabled]
 ```
@@ -77,12 +77,12 @@ except the `[disabled]` suffix when `enabled = false`. On a TTY that
 line is also grey. `--skip` is allowed and filters the list (unknown
 skip => exit 3). Disabled programs stay in the list unless skipped.
 
-## validate
+### validate
 
 Load config, load programs, resolve PKG_MANAGER, apply skip.
 Print to stdout:
 
-```
+```text
 config:  <path or "defaults">
 pkg_manager: <path>
 programs: N
@@ -91,23 +91,23 @@ programs: N
 Then the same list as `list`. No exec. Resolve failure => exit 1.
 Unknown skip => exit 3.
 
-## Exit mapping
+### Exit mapping
 
 ```go
 func exitCode(err error) int
 ```
 
-| err | code |
-| --- | --- |
-| nil | 0 |
-| `program.SkipError` | 3 |
-| cobra `flag` errors (already handled by cobra before RunE) | 2 |
-| anything else | 1 |
+| err                                                        | code |
+| ---------------------------------------------------------- | ---- |
+| nil                                                        | 0    |
+| `program.SkipError`                                        | 3    |
+| cobra `flag` errors (already handled by cobra before RunE) | 2    |
+| anything else                                              | 1    |
 
 `Execute` uses `os.Exit(exitCode(err))`. StepError (code 5) lands in
 05; add the `errors.As` branch then, not a placeholder now.
 
-## Tests
+### Tests
 
 `exitCode` table test in `cmd/exit_test.go`.
 
@@ -116,11 +116,11 @@ CLI tests: optional `cobra` `SetArgs` + `Execute` against a temp XDG
 if cheap; not required if `list`/`validate` stay thin wrappers.
 Minimum: `exitCode` unit tests + `go build`.
 
-## Out of scope
+### Out of scope
 
 Running programs, sudo, cache sweep.
 
-## Done when
+### Done when
 
 `go build .` and `go test ./...` pass.
 `sysup-go list` and `sysup-go validate` work against a temp config

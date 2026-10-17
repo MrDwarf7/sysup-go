@@ -5,7 +5,7 @@ keywords: [index, toc, docs]
 order: 0
 ---
 
-# Documentation index
+## Documentation index
 
 Read this file first. Open only the docs your task needs.
 
@@ -17,7 +17,7 @@ Read this file first. Open only the docs your task needs.
 | [AGENTS.md](../AGENTS.md)                          | Project conventions                                    | conventions, go, layout, slog, jj               |
 | [CI](CI.md)                                        | GitHub Actions, toolchain pins, setup-go               | ci, github-actions, setup-go                    |
 
-## Implementation specs
+### Implementation specs
 
 Approve these before a goal call. One milestone per call, in order.
 
@@ -35,7 +35,7 @@ Approve these before a goal call. One milestone per call, in order.
 | [10 cache](specs/impl/10-cache.md)         | end-of-run dir sweep                      | cache, include_dirs, exclude     |
 | [11 shutdown](specs/impl/11-shutdown.md)   | countdown; force vs clean-only            | shutdown, force-shutdown         |
 
-## Adding a doc
+### Adding a doc
 
 1. Put it under `docs/` (or `docs/specs/` for dated design notes).
 2. Add a row to the matching table (design vs impl).

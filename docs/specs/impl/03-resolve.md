@@ -5,22 +5,22 @@ keywords: [impl, resolve, pkg_manager, paru, yay, goroutine]
 order: 23
 ---
 
-# 03 resolve
+## 03 resolve
 
 Pick the AUR helper binary. Arch-family only. Failure is how Nix and
 Debian die for v1.
 
-## Depends on
+### Depends on
 
 01 (`Config.PkgManager.Name`). Independent of discovery.
 
-## Files
+### Files
 
 - Create: `internal/resolve/resolve.go`
 - Create: `internal/resolve/error.go`
 - Create: `internal/resolve/resolve_test.go`
 
-## Types
+### Types
 
 ```go
 package resolve
@@ -49,7 +49,7 @@ always go through `Resolver` so tests inject maps and fake paths.
 `LookupEnv` must distinguish unset vs empty: use `os.LookupEnv`
 (ok=false vs ok=true with `""`).
 
-## Behaviour
+### Behaviour
 
 Honour `ctx`: if `ctx.Err() != nil` at entry or after probes, return
 it.
@@ -73,28 +73,28 @@ binary (`paru`, `pacman`). No `$PKG_MANAGER` expansion in v1. Env
 Do not rewrite argv. Expanding env in recipes is a later feature,
 not core.
 
-## Tests
+### Tests
 
 Inject `LookPath` and `LookupEnv`. Never require real paru.
 
-| Case | Expect |
-| --- | --- |
-| unset env, paru and yay both "found" | paru path |
-| unset, only yay | yay path |
-| unset, neither, cfg `name = "custom"` found | custom path |
-| unset, neither, empty cfg | error |
-| env `PKG_MANAGER=""` | error, no LookPath calls |
-| env `PKG_MANAGER=foo` missing | error |
-| env `PKG_MANAGER=foo` found | foo, skip probes |
-| ctx already cancelled | error `ctx.Err()`, probes optional |
+| Case                                        | Expect                             |
+| ------------------------------------------- | ---------------------------------- |
+| unset env, paru and yay both "found"        | paru path                          |
+| unset, only yay                             | yay path                           |
+| unset, neither, cfg `name = "custom"` found | custom path                        |
+| unset, neither, empty cfg                   | error                              |
+| env `PKG_MANAGER=""`                        | error, no LookPath calls           |
+| env `PKG_MANAGER=foo` missing               | error                              |
+| env `PKG_MANAGER=foo` found                 | foo, skip probes                   |
+| ctx already cancelled                       | error `ctx.Err()`, probes optional |
 
 Assert paru-over-yay with a fake that records call order is **not**
 required; asserting the winner is.
 
-## Out of scope
+### Out of scope
 
 pacman itself, Debian, rewriting program argv.
 
-## Done when
+### Done when
 
 `go test ./internal/resolve/` is green. No cobra wiring yet (04).

@@ -53,8 +53,10 @@ Canonical recipes (alias in parens):
 - `just cover` - race tests with `-covermode=atomic`; profile is `bin/coverage.out`.
 - `just run` (`r`) - debug build, then `bin/sysup-dbg` with `GORACE=halt_on_error=1`.
 - `just run-release` (`rr`) - release build, then `bin/sysup`.
-- `just run-expr` (`re`) - expr build, then `bin/sysup-expr` with `GOGC=off` + clobber/efence/invalidptr.
-- `just install` (`i`) - release build, then install `sysup` into `~/.local/bin` (override with `SYSUP_BINDIR`).
+- `just run-expr` (`re`) - expr build, then `bin/sysup-expr` with `GOGC=off` +
+  clobber/efence/invalidptr.
+- `just install` (`i`) - release build, then install `sysup` into `~/.local/bin` (override with
+  `SYSUP_BINDIR`).
 - `just all` (`a`) - `format -> check -> test -> build-all`.
 - `just reset` (no alias) - `clean -> all`.
 
@@ -137,7 +139,7 @@ Package docs: `go doc` / [godoc comment rules](https://go.dev/doc/comment).
 Root context is `signal.NotifyContext` in `cmd`. Everything that can
 block (exec, sleep, ticker, errgroup) takes that `ctx` or a child.
 
-```
+```text
 signal.NotifyContext
   +-- sudo keepalive: select { case <-ctx.Done(); case <-ticker.C }
   +-- each CommandContext(ctx, argv0, argv[1:]...)
@@ -151,7 +153,7 @@ still runs (mise reactivate, stop keepalive). See the spec section
 
 ## Logging and errors
 
-```
+```text
 internal/config.Error
 internal/program.Error
 internal/resolve.Error

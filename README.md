@@ -1,8 +1,9 @@
 # sysup-go
 
-Port of the Fish `sysup` orchestrator to Go. Run an ordered list of user-defined programs from TOML config -- no rebuild needed.
+Port of the Fish `sysup` orchestrator to Go. Run an ordered list of user-defined programs from TOML
+config -- no rebuild needed.
 
-```
+```text
 sysup-go                  # run the plan
 sysup-go list             # show programs in order
 sysup-go validate         # check config without running
@@ -14,14 +15,16 @@ sysup-go -s m             # skip mirror AND mirror-* follow-ups
 
 ## What It Does
 
-You write TOML files describing programs (commands to run, in order). sysup-go executes them sequentially, with optional waves (parallel groups), sudo keepalive, mise wrapping, and end-of-run cache sweeps. Programs are just argv arrays -- no shell, no magic filenames.
+You write TOML files describing programs (commands to run, in order). sysup-go executes them
+sequentially, with optional waves (parallel groups), sudo keepalive, mise wrapping, and end-of-run
+cache sweeps. Programs are just argv arrays -- no shell, no magic filenames.
 
 Config lives in `$XDG_CONFIG_HOME/sysup/` (`AppDir` / `AppConfig`).
 Missing or empty `config.toml` is written from `Defaults()` and the
 process exits so you can edit it. `--generate-config` does the same
 on demand.
 
-```
+```text
 config.toml         # our behavior (sudo, mise, cache, shutdown)
 programs/*.toml     # OR programs.toml -- what to run, in what order
 ```
@@ -112,7 +115,8 @@ cd sysup-go
 just build-release    # -> bin/sysup
 ```
 
-Or download a release binary from the [Releases](https://github.com/MrDwarf7/sysup-go/releases/latest) page.
+Or download a release binary from the
+[Releases](https://github.com/MrDwarf7/sysup-go/releases/latest) page.
 
 ## Build
 
@@ -125,7 +129,7 @@ just a      # full pipeline: format -> check -> test -> build-all
 
 ## Project Structure
 
-```
+```text
 sysup-go/
   main.go              # entry point
   cmd/                 # cobra flags, logger, exit codes

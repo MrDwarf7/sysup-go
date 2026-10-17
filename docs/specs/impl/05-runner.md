@@ -5,18 +5,18 @@ keywords: [impl, runner, context, exec, CommandContext, signal]
 order: 25
 ---
 
-# 05 runner
+## 05 runner
 
 Run the plan one program at a time. Root context is cancelled on
 SIGINT/SIGTERM. Each child is bound to that context. First error
 stops the rest (continue is 07).
 
-## Depends on
+### Depends on
 
 02, 04. Uses `program.Spec` and `Options.Skip` (already filtered in
 cmd, or filter here; pick **cmd filters then passes `[]Spec`**).
 
-## Files
+### Files
 
 - Create: `internal/program/exec.go` (`Exec` Runner)
 - Create: `internal/program/exec_test.go`
@@ -25,7 +25,7 @@ cmd, or filter here; pick **cmd filters then passes `[]Spec`**).
 - Create: `internal/runner/run_test.go`
 - Modify: `cmd/root.go` attach `RunE`
 
-## Types
+### Types
 
 ```go
 package program
@@ -75,7 +75,7 @@ methods.
 `RunAll` type-asserts Pre/Post around `Run`. User execs only hit
 `Run`.
 
-## Exec behaviour
+### Exec behaviour
 
 1. If `ctx.Err() != nil`, return it without starting a process.
 2. `optional` and argv0 missing (`LookPath` fails): log at info,
@@ -87,7 +87,7 @@ methods.
 5. `cmd.Run()`. Non-zero exit: error wrapping `*exec.ExitError`.
 6. No shell. No `bash -c`.
 
-## RunAll behaviour (this milestone)
+### RunAll behaviour (this milestone)
 
 For each step, in slice order:
 
@@ -101,9 +101,9 @@ For fakes in tests, a small `named` helper is fine.
 
 Do not implement continue, waves, sudo, mise, cache, shutdown here.
 
-## cmd RunE
+### cmd RunE
 
-```
+```text
 ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 defer stop()
 ```
@@ -114,27 +114,27 @@ Load config, load programs, filter skip, drop `enabled = false`
 (`program.Runnable`), build `[]Exec`, `RunAll`.
 Map `StepError` to exit 5 in `exitCode`.
 
-## Tests
+### Tests
 
-| Case | Expect |
-| --- | --- |
-| two fakes, both nil | both ran, order preserved |
-| second fake errors | third not called, `StepError` name of second |
-| ctx cancelled before loop | no steps run, `ctx.Err()` |
-| Exec with `optional`, missing binary | nil error |
-| Exec required, missing binary | error |
-| Exec `CommandContext` + cancel while `sleep 30` | returns quickly, not 30s |
+| Case                                            | Expect                                       |
+| ----------------------------------------------- | -------------------------------------------- |
+| two fakes, both nil                             | both ran, order preserved                    |
+| second fake errors                              | third not called, `StepError` name of second |
+| ctx cancelled before loop                       | no steps run, `ctx.Err()`                    |
+| Exec with `optional`, missing binary            | nil error                                    |
+| Exec required, missing binary                   | error                                        |
+| Exec `CommandContext` + cancel while `sleep 30` | returns quickly, not 30s                     |
 
 The last test: `exec.CommandContext` with `sleep` (or a tiny Go
 `os.Args` helper). Cancel after 50ms. Assert elapsed << 30s.
 
 No pacman.
 
-## Out of scope
+### Out of scope
 
 `-c`, `parallel`, sudo ticker, mise, cache, shutdown.
 
-## Done when
+### Done when
 
 `go test ./internal/runner/ ./internal/program/` green.
 `sysup-go` with a programs dir of `command = ["true"]` (or `echo`)

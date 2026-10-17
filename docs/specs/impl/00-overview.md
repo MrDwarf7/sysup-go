@@ -5,7 +5,7 @@ keywords: [impl, overview, milestones, types, cmd]
 order: 20
 ---
 
-# Implementation specs overview
+## Implementation specs overview
 
 Per-part specs for v1. The design doc remains the behaviour source of
 truth. If an impl spec drifts, the design wins until it is amended.
@@ -13,14 +13,14 @@ truth. If an impl spec drifts, the design wins until it is amended.
 Do not start code until the matching spec is approved and a goal call
 names that milestone.
 
-## Composer vs units
+### Composer vs units
 
 `cmd/` owns process lifetime: flags, logger, root `context`, exit
 codes, and the order of wraps. Each `internal/` package is a unit with
 its own error type and tests. Wraps (sudo, mise, cache, shutdown) are
 called from `cmd`, not hidden inside program files.
 
-```
+```text
 cmd.Execute
   load config            (01)
   discover programs      (02)
@@ -34,27 +34,27 @@ cmd.Execute
     shutdown             (11)
 ```
 
-## Milestone order
+### Milestone order
 
-| ID | Spec | Builds | Needs |
-| --- | --- | --- | --- |
-| 01 | [config](01-config.md) | XDG + viper TOML + slog + `config.Error` | nothing |
-| 02 | [discovery](02-discovery.md) | program files, sort, uniqueness | 01 (dir path) |
-| 03 | [resolve](03-resolve.md) | PKG_MANAGER chain | 01 |
-| 04 | [cli](04-cli.md) | flags, `list`, `validate`, exit map | 01-03 |
-| 05 | [runner](05-runner.md) | sequential `CommandContext` | 02, 04 |
-| 06 | [sudo](06-sudo.md) | keepalive goroutine | 05 |
-| 07 | [continue](07-continue.md) | accumulate errors | 05 |
-| 08 | [waves](08-waves.md) | `parallel` + errgroup | 05, 07 |
-| 09 | [mise](09-mise.md) | PATH strip + `did_strip` | 05 |
-| 10 | [cache](10-cache.md) | end-of-run dir sweep | 01, 05 |
-| 11 | [shutdown](11-shutdown.md) | countdown + `shutdown -h` | 05, 07 |
+| ID  | Spec                         | Builds                                   | Needs         |
+| --- | ---------------------------- | ---------------------------------------- | ------------- |
+| 01  | [config](01-config.md)       | XDG + viper TOML + slog + `config.Error` | nothing       |
+| 02  | [discovery](02-discovery.md) | program files, sort, uniqueness          | 01 (dir path) |
+| 03  | [resolve](03-resolve.md)     | PKG_MANAGER chain                        | 01            |
+| 04  | [cli](04-cli.md)             | flags, `list`, `validate`, exit map      | 01-03         |
+| 05  | [runner](05-runner.md)       | sequential `CommandContext`              | 02, 04        |
+| 06  | [sudo](06-sudo.md)           | keepalive goroutine                      | 05            |
+| 07  | [continue](07-continue.md)   | accumulate errors                        | 05            |
+| 08  | [waves](08-waves.md)         | `parallel` + errgroup                    | 05, 07        |
+| 09  | [mise](09-mise.md)           | PATH strip + `did_strip`                 | 05            |
+| 10  | [cache](10-cache.md)         | end-of-run dir sweep                     | 01, 05        |
+| 11  | [shutdown](11-shutdown.md)   | countdown + `shutdown -h`                | 05, 07        |
 
 01-05 is the first vertical slice (load, list, run one command, Ctrl-C
 works). 06 is the first real background goroutine. 07-11 add behaviour
 flags and wraps.
 
-## Shared types
+### Shared types
 
 Locked here so later specs do not rename them.
 
@@ -114,7 +114,7 @@ type Options struct {
 }
 ```
 
-## Defaults
+### Defaults
 
 `config.toml` is bootstrapped. Missing or empty default file => write
 `Defaults()` to `AppConfig`, print the path, exit 0. `--config`
@@ -124,17 +124,17 @@ on demand and refuses to clobber a non-empty file.
 Programs are required: no `programs.toml` and no `programs/*.toml` =>
 error, nothing to run.
 
-## Exit codes (implemented in 04, used by later cmd wiring)
+### Exit codes (implemented in 04, used by later cmd wiring)
 
-| Code | `errors.As` target / case |
-| --- | --- |
-| 0 | nil |
-| 2 | cobra flag parse failure |
-| 3 | unknown skip token (`program.SkipError`) |
-| 5 | `runner.StepError` (hard fail or continue with failures) |
-| 1 | any other typed/untyped error |
+| Code | `errors.As` target / case                                |
+| ---- | -------------------------------------------------------- |
+| 0    | nil                                                      |
+| 2    | cobra flag parse failure                                 |
+| 3    | unknown skip token (`program.SkipError`)                 |
+| 5    | `runner.StepError` (hard fail or continue with failures) |
+| 1    | any other typed/untyped error                            |
 
-## Tests
+### Tests
 
 `go test ./...`. Table-driven. No live pacman. Inject `LookPath`,
 filesystem (temp dirs), and `Runner` fakes. `testdata/` for TOML

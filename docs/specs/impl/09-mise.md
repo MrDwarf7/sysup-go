@@ -5,7 +5,7 @@ keywords: [impl, mise, did_strip, PATH, defer]
 order: 29
 ---
 
-# 09 mise
+## 09 mise
 
 Mise shims can shadow system tools. Fish used `deactivate` / `source
 activate` because it was a shell. We are not a shell. Strip the shims
@@ -14,12 +14,12 @@ we did, and only restore if we did.
 
 Not a program.
 
-## Depends on
+### Depends on
 
 05 (RunE exists). 01 (`Config.Mise.Wrap`). 07 (`planClean` for
 `mise up`).
 
-## Files
+### Files
 
 - Create: `internal/mise/wrap.go`
 - Create: `internal/mise/error.go`
@@ -27,7 +27,7 @@ Not a program.
 - Modify: `cmd/root.go` around `RunAll` / `Exec` env
 - Modify: `internal/program/exec.go` if `Exec` needs an `Env []string`
 
-## Types
+### Types
 
 ```go
 package mise
@@ -55,14 +55,14 @@ func (w Wrap) Begin(enabled bool) State
 
 cmd:
 
-```
+```text
 st := miseWrap.Begin(cfg.Mise.Wrap)
 defer st.RestoreProcessPath()
 // pass st.ChildEnv(os.Environ()) into each Exec
 // after RunAll, if st.DidStrip && planClean { mise up }
 ```
 
-## Behaviour
+### Behaviour
 
 `Begin` is called with `cfg.Mise.Wrap && cfg.Mise.StripBinsFromPath`.
 `strip_bins_from_path` defaults true.
@@ -98,26 +98,26 @@ error from RunE).
 Do not run `mise deactivate` / `mise activate` / `source`. Do not
 expand env vars inside program `command` arrays.
 
-## Tests
+### Tests
 
 Inject PATH via `t.Setenv`. Do not require real mise; inject LookPath.
 
-| Case | Expect |
-| --- | --- |
-| wrap false | DidStrip false, PATH unchanged |
-| mise missing | DidStrip false, PATH unchanged |
-| shim dir on PATH | DidStrip true, PATHOrig saved, process PATH lacks shim |
-| RestoreProcessPath after strip | PATH equals PathOrig |
-| RestoreProcessPath when !DidStrip | PATH unchanged (no second parse) |
-| DidStrip && clean | `mise up` called once |
-| DidStrip && dirty | `mise up` not called |
-| !DidStrip && clean | `mise up` not called |
+| Case                              | Expect                                                 |
+| --------------------------------- | ------------------------------------------------------ |
+| wrap false                        | DidStrip false, PATH unchanged                         |
+| mise missing                      | DidStrip false, PATH unchanged                         |
+| shim dir on PATH                  | DidStrip true, PATHOrig saved, process PATH lacks shim |
+| RestoreProcessPath after strip    | PATH equals PathOrig                                   |
+| RestoreProcessPath when !DidStrip | PATH unchanged (no second parse)                       |
+| DidStrip && clean                 | `mise up` called once                                  |
+| DidStrip && dirty                 | `mise up` not called                                   |
+| !DidStrip && clean                | `mise up` not called                                   |
 
-## Out of scope
+### Out of scope
 
 Fish `source`. Windows. Env expansion in recipe `command`.
 
-## Done when
+### Done when
 
 `go test ./internal/mise/` green. Restore is a stored-string write,
 not a second PATH split.

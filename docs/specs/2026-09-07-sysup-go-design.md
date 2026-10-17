@@ -18,7 +18,7 @@ keywords:
 order: 10
 ---
 
-# sysup-go design
+## sysup-go design
 
 Port of the Fish `sysup` family to a Go CLI. Fish kept a registry plus
 one file per step. Go cannot source `.go` at runtime, so the registry
@@ -28,7 +28,7 @@ mise, end-of-run cache) and the runner. Programs are exec calls only.
 This spec is the source of truth for v1. Implementation plans and
 `AGENTS.md` follow it.
 
-## Goals
+### Goals
 
 1. Run an ordered list of user-defined programs without a rebuild.
 2. Fail fast on bad config before touching the system.
@@ -36,7 +36,7 @@ This spec is the source of truth for v1. Implementation plans and
 4. Teach Go via real use: files, `context`, goroutines, interfaces,
    errors.
 
-## Non-goals (v1)
+### Non-goals (v1)
 
 - Distro support beyond Arch-family package managers (pacman + paru/yay).
   Unknown distros error after resolve fails.
@@ -47,12 +47,12 @@ This spec is the source of truth for v1. Implementation plans and
 - Parallel package updates. `parallel = true` is opt-in on programs
   that do not share state (neovim / ya / hermes), never mirror/pacman/aur.
 
-## Layout
+### Layout
 
 Root `main.go` stays the process entry. Do not move it under `cmd/`.
 That layout is for multi-binary repos. This is one binary.
 
-```
+```text
 sysup-go/
   main.go                 # package main; calls cmd.Execute()
   cmd/                    # cobra: flags, wiring, exit codes
@@ -81,7 +81,7 @@ library directly. Viper is a bad directory merger.
 Add cobra commands with `cobra-cli add <name>`. Do not generate a cobra
 command per program; that would require a rebuild.
 
-## Two files, two jobs
+### Two files, two jobs
 
 `$XDG_CONFIG_HOME/sysup-go/` (fallback `~/.config/sysup-go/`).
 
@@ -95,7 +95,7 @@ If neither exists, error: nothing to run.
 
 Do not merge both. Do not invent a third registry.
 
-## config.toml
+### config.toml
 
 ```toml
 [sudo]
@@ -140,7 +140,7 @@ the real path.
 before the plan and `defer` reactivate. Run `mise up` only when the
 plan had zero failures.
 
-## Program files
+### Program files
 
 Directory order is **lexical filename sort**. Convention is systemd-style
 tens with gaps: `10-mirror.toml`, `20-pacman.toml`, `30-aur.toml`.
@@ -154,18 +154,18 @@ under `examples/programs/`. Copy that tree to
 `$XDG_CONFIG_HOME/sysup/programs/`. Fish `cache`, `mise`, and
 `shutdown` are wraps (`[cache]`, `[mise] wrap`, `-d`), not programs.
 
-| File | alias | command[0..] | optional |
-| --- | --- | --- | --- |
-| `10-mirror.toml` | m | `rate-mirrors --save /tmp/sysup-mirrorlist ... arch` | no |
-| `15-mirror-stage.toml` | mt | `sudo install ... /tmp/sysup-mirrorlist /etc/pacman.d/mirrorlist.new` | no |
-| `16-mirror-backup.toml` | mb | `sudo cp -a /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist-backup` | no |
-| `17-mirror-swap.toml` | mw | `sudo mv -f /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist` | no |
-| `20-pacman.toml` | p | `sudo pacman -Syyu --needed --noconfirm` | no |
-| `30-aur.toml` | a | `paru -Syu --devel --needed --noconfirm` | no |
-| `40-rustup.toml` | r | `rustup update` | yes |
-| `50-neovim.toml` | n | `nvim --headless -c 'Lazy! sync' -c qa` | no |
-| `60-ya.toml` | y | `ya pkg upgrade --discard` | yes |
-| `70-hermes.toml` | h | `hermes update -y` | no |
+| File                    | alias | command[0..]                                                          | optional |
+| ----------------------- | ----- | --------------------------------------------------------------------- | -------- |
+| `10-mirror.toml`        | m     | `rate-mirrors --save /tmp/sysup-mirrorlist ... arch`                  | no       |
+| `15-mirror-stage.toml`  | mt    | `sudo install ... /tmp/sysup-mirrorlist /etc/pacman.d/mirrorlist.new` | no       |
+| `16-mirror-backup.toml` | mb    | `sudo cp -a /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist-backup` | no       |
+| `17-mirror-swap.toml`   | mw    | `sudo mv -f /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist`    | no       |
+| `20-pacman.toml`        | p     | `sudo pacman -Syyu --needed --noconfirm`                              | no       |
+| `30-aur.toml`           | a     | `paru -Syu --devel --needed --noconfirm`                              | no       |
+| `40-rustup.toml`        | r     | `rustup update`                                                       | yes      |
+| `50-neovim.toml`        | n     | `nvim --headless -c 'Lazy! sync' -c qa`                               | no       |
+| `60-ya.toml`            | y     | `ya pkg upgrade --discard`                                            | yes      |
+| `70-hermes.toml`        | h     | `hermes update -y`                                                    | no       |
 
 Fish `aur` ran `$PKG_MANAGER`. v1 recipes are literals; `paru` is the
 resolve fallback. Swap the argv0 if the machine uses yay.
@@ -209,11 +209,11 @@ a name also drops later programs named `name-*` (so `-s m` skips
 `mirror` and `mirror-stage` / `mirror-backup` / `mirror-swap`). Skipping
 only the child does not skip the parent.
 
-## Skip vs continue
+### Skip vs continue
 
 These are different flags. They are not in conflict.
 
-```
+```text
 sysup-go -c              # continue on program errors
 sysup-go -s c            # skip the program whose alias is "c"
 sysup-go -s m,c          # skip aliases m and c (StringSlice)
@@ -228,7 +228,7 @@ Unknown skip token: error, name the token (exit 3). Skipping our cache
 phase is `[cache] enabled = false` or `--no-cache`, not `--skip cache`.
 Cache is not a program.
 
-## Interfaces
+### Interfaces
 
 Go has no inheritance. Interface embedding is composition.
 
@@ -272,7 +272,7 @@ everything can sit in a `[]Program`.
 User programs are `Runner`s (`exec.CommandContext`). Mise/sudo/cache are
 runner wraps around the whole plan, not programs.
 
-## Resolve: PKG_MANAGER
+### Resolve: PKG_MANAGER
 
 1. Env `PKG_MANAGER` **unset**: fall through.
 2. Env **set but empty** (`PKG_MANAGER=` or `""`): error immediately.
@@ -283,7 +283,7 @@ runner wraps around the whole plan, not programs.
 5. Else `config.pkg_manager` if set and present on `PATH`.
 6. Else error (Nix, Debian, empty PATH, etc.).
 
-## Run loop
+### Run loop
 
 1. Load + validate (unique names/aliases, non-empty commands, known
    fields, skip tokens resolve).
@@ -313,7 +313,7 @@ failures unless `--force-shutdown`.
 `--force-shutdown` is long-only (plus the config key). It is intentional.
 `--force-shutdown` implies shutdown; it does not require `-d` as well.
 
-## Waves (`parallel`)
+### Waves (`parallel`)
 
 Sort first (filename or array order). Then walk:
 
@@ -323,7 +323,7 @@ Sort first (filename or array order). Then walk:
 
 Example:
 
-```
+```text
 10-mirror.toml      parallel = false
 20-pacman.toml      parallel = false
 30-aur.toml         parallel = false
@@ -342,7 +342,7 @@ errors, proceed to the next wave.
 Do not overlap rustup with pacman/aur. Leave rustup `parallel = false`
 and ordered after them.
 
-## CLI
+### CLI
 
 Root command runs the plan (Fish parity: `sysup-go` with no subcommand).
 
@@ -361,7 +361,7 @@ Subcommands (`cobra-cli add`):
 - `list` -- discovered programs in run order
 - `validate` -- parse and resolve, do not run
 
-## Errors and exit codes
+### Errors and exit codes
 
 Each `internal/` package owns a typed error with `Unwrap()`
 (`config.Error`, `program.Error`, `resolve.Error`, `runner.StepError`).
@@ -379,7 +379,7 @@ Each `internal/` package owns a typed error with `Unwrap()`
 `log/slog` only. No zap. Inject the logger; do not rely on the global
 except as a last-resort default in `main`.
 
-## Context (normative)
+### Context (normative)
 
 See the implementation notes in `AGENTS.md` and the walkthrough in
 conversation; the rules here are binding:
@@ -393,7 +393,7 @@ conversation; the rules here are binding:
 - `ctx.Done()` is how Ctrl-C kills children, the sudo ticker, and a
   hard-fail wave.
 
-## Tests (v1)
+### Tests (v1)
 
 Table tests, no network:
 
@@ -406,7 +406,7 @@ Table tests, no network:
 
 Fake `Runner`s, not live pacman.
 
-## Later
+### Later
 
 - Debian/apt as another `PkgManager` implementation.
 - User-tunable sudo interval already exists; extra keepalive knobs.

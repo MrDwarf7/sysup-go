@@ -5,17 +5,17 @@ keywords: [impl, config, viper, xdg, toml, slog]
 order: 21
 ---
 
-# 01 config
+## 01 config
 
 Load `$XDG_CONFIG_HOME/sysup-go/config.toml` (fallback
 `~/.config/sysup-go/config.toml`) via viper as TOML. Replace the
 cobra-cli YAML default. Build an injected `*slog.Logger`.
 
-## Depends on
+### Depends on
 
 Nothing. First code milestone.
 
-## Files
+### Files
 
 - Create: `internal/config/config.go` (`Config` types, defaults)
 - Create: `internal/config/load.go` (`Dir`, `Load`)
@@ -23,7 +23,7 @@ Nothing. First code milestone.
 - Create: `internal/config/load_test.go`
 - Modify: `cmd/root.go` (`initConfig`, drop YAML, `--config`, logger)
 
-## Types
+### Types
 
 ```go
 package config
@@ -76,7 +76,7 @@ max_attempts = 0
 `interval` and `wait` decode as `time.Duration`. Invalid duration is a
 decode error.
 
-## Behaviour
+### Behaviour
 
 1. `AppDir` uses `os.UserConfigDir` (honours `XDG_CONFIG_HOME` on
    Linux). Join `AppName`. `MkdirAll` the directory. `AppConfig` is
@@ -102,27 +102,27 @@ viper. `Load` reads the file, then `AutomaticEnv` (prefix `AppName`,
 `.`/`-` -> `_`) so env wins over the file. Flag viper does the same
 after flags are bound.
 
-## Tests
+### Tests
 
-| Case | Expect |
-| --- | --- |
-| no file in temp XDG (Load) | Defaults(), err nil |
-| valid full toml | fields match, durations 50s and 1m |
-| bad duration (`interval = "nope"`) | decode error, path set |
-| missing explicit path | read error |
-| unknown key `[foo] bar = 1` | decode error |
-| `AppDir` with `XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/<AppName>` |
-| Generate missing/empty path | writes Defaults(), Load round-trips |
-| Generate non-empty path | generate error, file unchanged |
+| Case                                | Expect                              |
+| ----------------------------------- | ----------------------------------- |
+| no file in temp XDG (Load)          | Defaults(), err nil                 |
+| valid full toml                     | fields match, durations 50s and 1m  |
+| bad duration (`interval = "nope"`)  | decode error, path set              |
+| missing explicit path               | read error                          |
+| unknown key `[foo] bar = 1`         | decode error                        |
+| `AppDir` with `XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/<AppName>`        |
+| Generate missing/empty path         | writes Defaults(), Load round-trips |
+| Generate non-empty path             | generate error, file unchanged      |
 
 Set `XDG_CONFIG_HOME` to a `t.TempDir()` in tests. Do not touch the
 real home dir.
 
-## Out of scope
+### Out of scope
 
 Program files, cobra subcommands, running anything.
 
-## Done when
+### Done when
 
 `go test ./internal/config/` is green. `cmd/root.go` no longer mentions
 YAML. `sysup-go --help` still runs (root `Run` may still be empty).

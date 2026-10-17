@@ -5,23 +5,23 @@ keywords: [impl, sudo, keepalive, goroutine, context, ticker]
 order: 26
 ---
 
-# 06 sudo
+## 06 sudo
 
 Stop sudo from timing out during a long pacman/aur run. One
 goroutine, one context.
 
-## Depends on
+### Depends on
 
 05 (root ctx already exists). 01 (`Config.Sudo`).
 
-## Files
+### Files
 
 - Create: `internal/sudo/keepalive.go`
 - Create: `internal/sudo/error.go`
 - Create: `internal/sudo/keepalive_test.go`
 - Modify: `cmd/root.go` `RunE` to start/stop keepalive when enabled
 
-## Types
+### Types
 
 ```go
 package sudo
@@ -39,7 +39,7 @@ func (k KeepAlive) Start(ctx context.Context) (stop func(), err error)
 Default `Run` executes `exec.CommandContext(ctx, name, args...).Run()`
 with stdout/stderr discarded (keepalive must not spam).
 
-## Behaviour
+### Behaviour
 
 If `cfg.Sudo.Keepalive == false`, cmd does not call `Start`.
 
@@ -50,7 +50,7 @@ If `cfg.Sudo.Keepalive == false`, cmd does not call `Start`.
    (cannot prime). Do not start the goroutine.
 3. Launch a goroutine:
 
-```
+```text
 ticker := time.NewTicker(interval)
 defer ticker.Stop()
 for {
@@ -73,7 +73,7 @@ for {
 Recommended: `Start` derives `bg, cancel := context.WithCancel(ctx)`
 for the goroutine and returns `cancel` as `stop`. cmd:
 
-```
+```text
 stopKA, err := ka.Start(ctx)
 if err != nil { return err }
 defer stopKA()
@@ -85,25 +85,25 @@ So tests can `stopKA()` without signalling the process.
 keep ticking. Do not abort the update. The next program's sudo
 prompt is the recovery.
 
-## Tests
+### Tests
 
 Inject `Run` that records calls with timestamps.
 
-| Case | Expect |
-| --- | --- |
-| Start, immediate cancel | `sudo -v` once, no `-n` required |
-| Interval 20ms, live 70ms | `sudo -v` once, at least two `-n true` |
-| `sudo -v` fails | Start returns error, no goroutine work after return |
-| after stop(), no further Run calls (wait 2 intervals) | count stable |
+| Case                                                  | Expect                                              |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| Start, immediate cancel                               | `sudo -v` once, no `-n` required                    |
+| Interval 20ms, live 70ms                              | `sudo -v` once, at least two `-n true`              |
+| `sudo -v` fails                                       | Start returns error, no goroutine work after return |
+| after stop(), no further Run calls (wait 2 intervals) | count stable                                        |
 
 Use a fake clock **only if** you already have one; `time.Ticker` with
 short intervals is enough. Never call real sudo in tests.
 
-## Out of scope
+### Out of scope
 
 Asking for a password in Go. `sudo -v` uses the TTY as today.
 
-## Done when
+### Done when
 
 `go test ./internal/sudo/` green. Manual: run a dummy long `sleep`
 program with keepalive interval 10s and confirm `sudo -n true`
